@@ -20,10 +20,10 @@ EXPERIMENTS.md
 # ===== Data & artefak (terlalu besar / bisa diunduh ulang) =====
 data/*
 !data/README.md
-models/
-artifacts/
-runs/
-outputs/
+/models/
+/artifacts/
+/runs/
+/outputs/
 *.parquet
 *.csv.gz
 *.pt

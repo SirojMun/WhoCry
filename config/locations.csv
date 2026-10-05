@@ -1,0 +1,36 @@
+adm2,nama,ibukota,lat,lon,elevasi,adm4_bmkg,desa_bmkg,jarak_bmkg_km,grid_lat,grid_lon
+33.01,Kabupaten Cilacap,Cilacap,-7.7272,109.00956,8.0,33.01.21.1001,Sidakaya,0.65,-7.697715,108.99574
+33.02,Kabupaten Banyumas,Purwokerto,-7.4279,109.24085,79.0,33.02.26.1002,Kranji,0.5,-7.41652,109.23664
+33.03,Kabupaten Purbalingga,Purbalingga,-7.38943,109.36326,60.0,33.03.05.1008,Purbalingga Kidul,0.53,-7.41652,109.38931
+33.04,Kabupaten Banjarnegara,Banjarnegara,-7.39626,109.69505,293.0,33.04.06.1012,Krandegan,0.37,-7.41652,109.69466
+33.05,Kabupaten Kebumen,Kebumen,-7.66869,109.65195,23.0,33.05.12.1026,Bumirejo,0.79,-7.697715,109.68511
+33.06,Kabupaten Purworejo,Purworejo,-7.71308,110.00906,63.0,33.06.06.1017,Purworejo,0.67,-7.697715,109.99149
+33.07,Kabupaten Wonosobo,Wonosobo,-7.35952,109.90283,791.0,33.07.09.1021,Wonosobo Timur,0.11,-7.41652,109.92366
+33.08,Kabupaten Magelang,Mungkid,-7.55216,110.25243,314.0,33.08.09.2010,Mungkid,0.46,-7.5571175,110.26338
+33.09,Kabupaten Boyolali,Boyolali,-7.53138,110.59729,432.0,33.09.05.1001,Pulisen,0.55,-7.486819,110.62819
+33.10,Kabupaten Klaten,Klaten,-7.70495,110.6018,164.0,33.10.25.1002,Kabupaten,0.14,-7.697715,110.604256
+33.11,Kabupaten Sukoharjo,Sukoharjo,-7.68299,110.84063,100.0,33.11.04.1006,Joho,0.94,-7.697715,110.834045
+33.12,Kabupaten Wonogiri,Wonogiri,-7.8142,110.92596,136.0,33.12.12.1006,Giripurwo,0.15,-7.8383126,110.94629
+33.13,Kabupaten Karanganyar,Karanganyar,-7.59759,110.94687,157.0,33.13.09.1007,Karanganyar,0.41,-7.627416,110.96939
+33.14,Kabupaten Sragen,Sragen,-7.42773,111.02349,87.0,33.14.10.1003,Sragen Tengah,0.32,-7.41652,110.99236
+33.15,Kabupaten Grobogan,Purwodadi,-7.0872,110.91339,26.0,33.15.13.1012,Purwodadi,0.24,-7.0650263,110.90372
+33.16,Kabupaten Blora,Blora,-6.96915,111.41305,91.0,33.16.09.1016,Tempelan,0.86,-6.994727,111.41772
+33.17,Kabupaten Rembang,Rembang,-6.70569,111.34862,6.0,33.17.10.2005,Pandean,0.21,-6.7135324,111.34567
+33.18,Kabupaten Pati,Pati,-6.75341,111.04,11.0,33.18.10.1005,Pati Wetan,0.4,-6.783831,111.06061
+33.19,Kabupaten Kudus,Kudus,-6.80782,110.84169,23.0,33.19.02.2013,Demaan,0.28,-6.783831,110.833336
+33.20,Kabupaten Jepara,Jepara,-6.58991,110.6673,5.0,33.20.06.1006,Panggang,0.47,-6.5729346,110.70529
+33.21,Kabupaten Demak,Demak,-6.89475,110.63854,5.0,33.21.11.1018,Bintoro,0.4,-6.9244285,110.64081
+33.22,Kabupaten Semarang,Ungaran,-7.12909,110.40389,318.0,33.22.18.1008,Ungaran,0.16,-7.135325,110.46492
+33.23,Kabupaten Temanggung,Temanggung,-7.31628,110.17559,590.0,33.23.03.1002,Temanggung II,0.35,-7.346221,110.21186
+33.24,Kabupaten Kendal,Kendal,-6.9217,110.20403,5.0,33.24.15.1014,Patukangan,0.16,-6.9244285,110.18549
+33.25,Kabupaten Batang,Batang,-6.9079,109.73031,7.0,33.25.11.1014,Proyonanggan Tengah,0.6,-6.9244285,109.73018
+33.26,Kabupaten Pekalongan,Kajen,-7.03113,109.57842,34.0,33.26.08.1016,Kajen,0.52,-6.994727,109.59493
+33.27,Kabupaten Pemalang,Pemalang,-6.89038,109.38063,10.0,33.27.08.1016,Pelutan,0.79,-6.9244285,109.35075
+33.28,Kabupaten Tegal,Slawi,-6.98291,109.13637,41.0,33.28.10.1006,Pakembaran,0.89,-6.994727,109.13924
+33.29,Kabupaten Brebes,Brebes,-6.87064,109.0369,6.0,33.29.09.1002,Brebes,0.92,-6.85413,109.03117
+33.71,Kota Magelang,Magelang,-7.47707,110.21822,383.0,33.71.03.1005,Panjang,0.67,-7.486819,110.246185
+33.72,Kota Surakarta,Surakarta,-7.56925,110.82845,96.0,33.72.03.1006,Kampungbaru,0.06,-7.5571175,110.798645
+33.73,Kota Salatiga,Salatiga,-7.33026,110.49954,579.0,33.73.04.1004,Kalicacing,0.41,-7.346221,110.516945
+33.74,Kota Semarang,Semarang,-6.9904,110.42291,6.0,33.74.07.1005,Pleburan,0.61,-6.994727,110.430374
+33.75,Kota Pekalongan,Pekalongan,-6.89051,109.67615,5.0,33.75.02.1004,Kauman,0.2,-6.9244285,109.6543
+33.76,Kota Tegal,Tegal,-6.86745,109.13783,5.0,33.76.02.1004,Mangkukusuman,0.29,-6.85413,109.106995

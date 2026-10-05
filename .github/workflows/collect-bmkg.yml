@@ -1,0 +1,46 @@
+name: Kolektor BMKG
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"   # tiap 3 jam, menit ke-17 (UTC) agar tidak bertabrakan dengan antrean jam bulat
+  workflow_dispatch:          # bisa dijalankan manual dari tab Actions
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-bmkg
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          ref: data-bmkg
+          path: store
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pasang dependensi
+        run: pip install pandas requests
+
+      - name: Ambil prakiraan BMKG
+        env:
+          PYTHONPATH: src
+        run: python scripts/collect_bmkg.py --out store
+
+      - name: Simpan ke branch data-bmkg
+        working-directory: store
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bmkg
+          git commit -m "BMKG $(date -u +'%Y-%m-%d %H:%M') UTC" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
