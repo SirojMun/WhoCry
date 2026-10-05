@@ -1,0 +1,46 @@
+# ===== Kredensial & rahasia (JANGAN PERNAH di-push) =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*secret*
+*token*
+!**/*tokenizer*
+
+# ===== Catatan AI / asisten (tetap lokal) =====
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.ai/
+AGENTS.md
+EXPERIMENTS.md
+
+# ===== Data & artefak (terlalu besar / bisa diunduh ulang) =====
+data/*
+!data/README.md
+models/
+artifacts/
+runs/
+outputs/
+*.parquet
+*.csv.gz
+*.pt
+*.pth
+*.ckpt
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

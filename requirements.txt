@@ -1,0 +1,10 @@
+# PyTorch tidak dicantumkan: sudah terpasang di Google Colab.
+# Untuk lokal, pasang terpisah sesuai petunjuk di https://pytorch.org
+numpy
+pandas
+pyarrow
+requests
+scikit-learn
+matplotlib
+python-dotenv
+pytest
