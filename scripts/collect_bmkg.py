@@ -2,7 +2,8 @@
 
     python scripts/collect_bmkg.py --out <folder>
 
-Hasil: <folder>/bmkg/YYYY/MM/DD/HHMM.csv.gz (waktu pengambilan, UTC).
+Hasil: <folder>/bmkg/YYYY/MM/DD/HHMM.csv.gz (waktu pengambilan, UTC) dan
+<folder>/bmkg/latest.csv.gz (salinan snapshot terbaru untuk dasbor).
 Dijalankan tiap 3 jam oleh .github/workflows/collect-bmkg.yml.
 """
 
@@ -34,6 +35,7 @@ def main():
     path = args.out / "bmkg" / now.strftime("%Y/%m/%d") / f"{now:%H%M}.csv.gz"
     path.parent.mkdir(parents=True, exist_ok=True)
     data.to_csv(path, index=False)
+    data.to_csv(args.out / "bmkg" / "latest.csv.gz", index=False)  # dibaca dasbor
     print(f"{path}: {len(data)} baris, {data['adm2'].nunique()} lokasi, gagal {len(failed)}")
     # Gagal sebagian masih diterima; gagal lebih dari separuh dianggap error.
     if len(failed) > len(locations) // 2:

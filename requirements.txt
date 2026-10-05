@@ -6,5 +6,6 @@ pyarrow
 requests
 scikit-learn
 matplotlib
+tabulate
 python-dotenv
 pytest

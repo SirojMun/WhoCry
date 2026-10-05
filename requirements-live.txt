@@ -1,0 +1,6 @@
+# Dependensi minimal untuk pipeline realtime di GitHub Actions (PyTorch versi CPU).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+numpy
+pandas
+requests

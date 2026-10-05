@@ -140,8 +140,14 @@ class WindowData:
     def batch(self, idx):
         """idx: [B, 2] berisi (t, l). Keluaran x [B, n_in, F] dan y [B, n_out, n_targets]."""
         t, l = idx[:, 0], idx[:, 1]
-        tin = t[:, None] + self._offsets_in             # [B, n_in]
         tout = t[:, None] + self._offsets_out           # [B, n_out]
+        y = self.X[tout, l[:, None], : self.n_targets]
+        return self.batch_inputs(idx), y
+
+    def batch_inputs(self, idx):
+        """Hanya masukan x [B, n_in, F]; dipakai juga saat realtime (target belum ada)."""
+        t, l = idx[:, 0], idx[:, 1]
+        tin = t[:, None] + self._offsets_in             # [B, n_in]
         parts = [self.X[tin, l[:, None]], self.T_feat[tin]]
         if self.variant in ("S1", "S2", "S3"):
             parts.append(np.repeat(self.static[l][:, None, :], self.n_in, axis=1))
@@ -154,9 +160,7 @@ class WindowData:
             onehot = np.zeros((B, self.n_in, self.n_locations), dtype="float32")
             onehot[np.arange(B), :, l] = 1.0
             parts.append(onehot)
-        x = np.concatenate(parts, axis=2).astype("float32")
-        y = self.X[tout, l[:, None], : self.n_targets]
-        return x, y
+        return np.concatenate(parts, axis=2).astype("float32")
 
 
 def prepare(hourly, locations, variant, stride=1,

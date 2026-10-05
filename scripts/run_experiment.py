@@ -13,6 +13,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
 
@@ -53,6 +54,9 @@ def run(cfg, variant, hourly, locations, out_dir, stride=1, max_test_samples=Non
     rain.to_csv(out / "rain.csv", index=False)
     if history:
         torch.save(model.state_dict(), out / "model.pt")
+        # Scaler ikut disimpan agar model bisa dipakai di pipeline realtime.
+        np.savez(out / "scaler.npz", x_mean=meta["x_scaler"].mean, x_std=meta["x_scaler"].std,
+                 s_mean=meta["s_scaler"].mean, s_std=meta["s_scaler"].std)
     log(summarize(metrics).round(3).to_string())
     return out, metrics, rain
 

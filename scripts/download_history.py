@@ -20,27 +20,33 @@ from whocry.data.openmeteo import fetch_archive, make_session, request_weight
 
 RAW_DIR = settings.DATA_DIR / "raw" / "openmeteo"
 OUT = settings.DATA_DIR / "processed" / "hourly.parquet"
-HOURLY_BUDGET = 4000  # di bawah batas 5.000/jam
+BUDGETS = ((60, 500), (3600, 4000))  # (detik, bobot): di bawah batas 600/menit dan 5.000/jam
 
 
 class Throttle:
-    """Menjaga total bobot request dalam 60 menit terakhir di bawah anggaran."""
+    """Menjaga total bobot request di setiap jendela waktu tetap di bawah anggarannya."""
 
-    def __init__(self, budget):
-        self.budget = budget
+    def __init__(self, budgets):
+        self.budgets = budgets
         self.log = deque()
 
     def wait(self, weight):
+        horizon = max(sec for sec, _ in self.budgets)
         while True:
             now = time.time()
-            while self.log and now - self.log[0][0] > 3600:
+            while self.log and now - self.log[0][0] > horizon:
                 self.log.popleft()
-            used = sum(w for _, w in self.log)
-            if used + weight <= self.budget:
+            pause = 0.0
+            for sec, budget in self.budgets:
+                recent = [(t, w) for t, w in self.log if now - t <= sec]
+                used = sum(w for _, w in recent)
+                if used + weight > budget:
+                    pause = max(pause, sec - (now - recent[0][0]) + 1)
+            if pause == 0:
                 self.log.append((now, weight))
                 return
-            pause = 3600 - (now - self.log[0][0]) + 1
-            print(f"  anggaran per jam terpakai {used:.0f}; tunggu {pause / 60:.1f} menit", flush=True)
+            if pause > 120:
+                print(f"  anggaran kuota terpakai; tunggu {pause / 60:.1f} menit", flush=True)
             time.sleep(pause)
 
 
@@ -62,7 +68,7 @@ def is_complete(path, end):
 def download(locations):
     end_date = date.today() - timedelta(days=1)
     session = make_session()
-    throttle = Throttle(HOURLY_BUDGET)
+    throttle = Throttle(BUDGETS)
     tasks = [(loc, *yr) for loc in locations.itertuples() for yr in year_ranges(end_date)]
     total_w = sum(request_weight(s, e, len(settings.HOURLY_VARS)) for _, _, s, e in tasks)
     print(f"{len(tasks)} file, total bobot ≈ {total_w:.0f} panggilan", flush=True)

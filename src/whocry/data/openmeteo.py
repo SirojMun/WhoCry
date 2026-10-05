@@ -37,9 +37,18 @@ def _to_frame(payload, variables):
 
 def _get(session, url, params, max_wait_s=3 * 3600):
     """GET dengan penanganan batas kuota: tunggu lalu coba lagi saat HTTP 429."""
-    waited = 0
+    waited, failures = 0, 0
     while True:
-        r = session.get(url, params=params, timeout=120)
+        try:
+            r = session.get(url, params=params, timeout=120)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            # Putus di tengah transfer tidak ditangani oleh Retry bawaan urllib3.
+            failures += 1
+            if failures > 8:
+                raise
+            print(f"  koneksi gagal ({type(e).__name__}); coba lagi dalam {30 * failures} detik", flush=True)
+            time.sleep(30 * failures)
+            continue
         if r.status_code != 429:
             r.raise_for_status()
             return r.json()
