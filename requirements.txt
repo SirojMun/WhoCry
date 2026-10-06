@@ -1,4 +1,4 @@
-# PyTorch tidak dicantumkan: sudah terpasang di Google Colab.
+# PyTorch tidak dicantumkan: sudah terpasang di Kaggle.
 # Untuk lokal, pasang terpisah sesuai petunjuk di https://pytorch.org
 numpy
 pandas

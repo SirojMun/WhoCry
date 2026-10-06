@@ -9,7 +9,7 @@ dengan fitur spasial, disertai pelatihan ulang berkala dan sistem pemantauan *re
 ```
 src/whocry/   kode utama (pengambilan data, fitur, model, pelatihan)
 scripts/      skrip yang dijalankan langsung (unduh data, kolektor, dll.)
-notebooks/    eksplorasi dan eksperimen (dijalankan di Google Colab)
+kaggle/       runner pelatihan di Kaggle (GPU): `kaggle kernels push -p kaggle`
 tests/        pengujian otomatis
 data/         data lokal (tidak di-push)
 ```
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 pip install -e .   # opsional, agar paket whocry bisa di-import
 ```
 
-PyTorch sudah tersedia di Google Colab. Untuk lokal, pasang sesuai petunjuk di
+PyTorch sudah tersedia di Kaggle. Untuk lokal, pasang sesuai petunjuk di
 https://pytorch.org.
 
 ## Sumber Data
