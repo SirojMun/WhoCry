@@ -9,6 +9,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+plt.rcParams["axes.titlesize"] = 9
 import numpy as np
 import pandas as pd
 
@@ -187,11 +189,11 @@ def main():
         "",
         "## Rata-rata tahunan",
         "",
-        trend.round(2).to_markdown(),
+        trend.round(2).rename_axis("tahun").to_markdown(),
         "",
         "## Kelengkapan per lokasi",
         "",
-        comp.to_markdown(index=False),
+        comp.to_markdown(index=False, disable_numparse=True),
     ]
     REPORTS.mkdir(exist_ok=True)
     (REPORTS / "eda_summary.md").write_text("\n".join(lines), encoding="utf-8")

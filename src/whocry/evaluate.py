@@ -74,4 +74,4 @@ def diebold_mariano(e1, e2, h=1, power=1):
 def summarize(metrics, horizons=REPORT_HORIZONS):
     """Tabel ringkas: baris = target, kolom = MAE per horizon pelaporan."""
     sub = metrics[metrics["horizon"].isin(horizons)]
-    return sub.pivot(index="target", columns="horizon", values="mae").reindex(TARGET_NAMES)
+    return sub.pivot(index="target", columns="horizon", values="mae").reindex(TARGET_NAMES).astype(float)
