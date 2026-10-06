@@ -2,7 +2,7 @@ name: Kolektor BMKG
 
 on:
   schedule:
-    - cron: "17 */3 * * *"   # tiap 3 jam, menit ke-17 (UTC) agar tidak bertabrakan dengan antrean jam bulat
+    - cron: "17 * * * *"   # tiap jam (target 3 jam): GitHub sering melewatkan jadwal, snapshot ganda tidak masalah
   workflow_dispatch:          # bisa dijalankan manual dari tab Actions
 
 permissions:

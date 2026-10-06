@@ -2,7 +2,7 @@ name: Prediksi per jam
 
 on:
   schedule:
-    - cron: "7 * * * *"   # tiap jam, menit ke-7 (UTC)
+    - cron: "7,27,47 * * * *"   # 3× per jam: GitHub sering melewatkan jadwal; run ganda menimpa file jam yang sama
   workflow_dispatch:
 
 permissions:
