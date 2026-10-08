@@ -1,0 +1,113 @@
+<!-- Peta isi (choropleth) + animasi partikel angin. Diisi oleh app.py (penanda DATA di bawah). -->
+<div id="wrap">
+  <div id="title"></div>
+  <div id="stage"><svg id="map"></svg><canvas id="wind"></canvas><div id="tip"></div></div>
+  <div id="legend"></div>
+</div>
+<style>
+  body { margin: 0; font-family: "Source Sans Pro", sans-serif; }
+  #wrap { color: #0f172a; }
+  #title { font-weight: 600; font-size: 15px; margin: 2px 0 6px; }
+  #stage { position: relative; background: #1e293b; border-radius: 8px; overflow: hidden; }
+  #map, #wind { position: absolute; left: 0; top: 0; }
+  #wind { pointer-events: none; }
+  #map path { stroke: rgba(255,255,255,.55); stroke-width: .7; }
+  #map path:hover { stroke: #fff; stroke-width: 2; }
+  #tip { position: absolute; display: none; pointer-events: none; background: rgba(15,23,42,.92); color: #fff;
+         padding: 6px 9px; border-radius: 6px; font-size: 13px; line-height: 1.35; white-space: nowrap; }
+  #legend { display: flex; gap: 18px; align-items: center; font-size: 12px; margin-top: 6px; flex-wrap: wrap; }
+  #bar { width: 220px; height: 10px; border-radius: 3px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script>
+const D = /*DATA*/null;
+const W = window.innerWidth, H = D.height;
+const ARAH = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"];
+
+document.getElementById("title").textContent = D.title;
+const stage = d3.select("#stage").style("height", H + "px");
+const svg = d3.select("#map").attr("width", W).attr("height", H);
+const proj = d3.geoMercator().fitExtent([[8, 8], [W - 8, H - 8]], {type: "FeatureCollection", features: D.features});
+const path = d3.geoPath(proj);
+
+// Warna isi kalem: hanya pakai 15–85% rentang skema agar tidak terlalu gelap dan partikel tetap terlihat.
+const vals = Object.values(D.values).filter(v => v !== null);
+const lo = d3.min(vals), hi = d3.max(vals) > lo ? d3.max(vals) : lo + 1;
+const interp = t => d3[D.scheme](0.15 + 0.7 * (D.reverse ? 1 - t : t));
+const color = v => v === null || v === undefined ? "#64748b" : interp((v - lo) / (hi - lo));
+
+// --- Angin -------------------------------------------------------------------------------
+function windAt(lon, lat) {  // interpolasi bilinear pada grid; null di luar grid
+  if (!D.wind) return null;
+  const {lats, lons, u, v} = D.wind;
+  const fy = (lats[0] - lat) / (lats[0] - lats[1]), fx = (lon - lons[0]) / (lons[1] - lons[0]);
+  if (fx < 0 || fy < 0 || fx > lons.length - 1 || fy > lats.length - 1) return null;
+  const x0 = Math.floor(fx), y0 = Math.floor(fy);
+  const x1 = Math.min(x0 + 1, lons.length - 1), y1 = Math.min(y0 + 1, lats.length - 1);
+  const dx = fx - x0, dy = fy - y0;
+  const b = g => g[y0][x0] * (1 - dx) * (1 - dy) + g[y0][x1] * dx * (1 - dy) + g[y1][x0] * (1 - dx) * dy + g[y1][x1] * dx * dy;
+  return [b(u), b(v)];
+}
+function windText(lon, lat) {
+  const w = windAt(lon, lat);
+  if (!w) return "";
+  const spd = Math.hypot(w[0], w[1]);
+  const from = (Math.atan2(-w[0], -w[1]) * 180 / Math.PI + 360) % 360;   // arah datang (konvensi meteorologi)
+  return `<br>Angin ${spd.toFixed(0)} km/jam dari ${ARAH[Math.round(from / 45) % 8]}`;
+}
+
+// --- Poligon + tooltip -------------------------------------------------------------------
+const tip = d3.select("#tip");
+svg.selectAll("path").data(D.features).join("path")
+  .attr("d", path)
+  .attr("fill", f => color(D.values[f.properties.adm2]))
+  .on("mousemove", (ev, f) => {
+    const [x, y] = d3.pointer(ev, stage.node());
+    const v = D.values[f.properties.adm2];
+    const [lon, lat] = proj.invert([x, y]);
+    tip.style("display", "block").style("left", Math.min(x + 14, W - 230) + "px").style("top", (y + 14) + "px")
+       .html(`<b>${f.properties.nama}</b>` + (v == null ? "" : `<br>${D.label}: ${v.toFixed(1)} ${D.unit}`) + windText(lon, lat));
+  })
+  .on("mouseleave", () => tip.style("display", "none"));
+
+// --- Partikel ------------------------------------------------------------------------------
+const canvas = document.getElementById("wind");
+canvas.width = W; canvas.height = H;
+const ctx = canvas.getContext("2d");
+if (D.wind && D.animate) {
+  const {lats, lons} = D.wind;
+  const N = Math.round(W * H / 260), MAXAGE = 90, K = 0.00022;   // K: derajat per (km/jam) per frame
+  const spawn = p => { p.lon = lons[0] + Math.random() * (lons.at(-1) - lons[0]);
+                       p.lat = lats.at(-1) + Math.random() * (lats[0] - lats.at(-1));
+                       p.age = Math.floor(Math.random() * MAXAGE); return p; };
+  const parts = Array.from({length: N}, () => spawn({}));
+  (function frame() {
+    ctx.globalCompositeOperation = "destination-in";      // jejak memudar
+    ctx.fillStyle = "rgba(0,0,0,0.92)"; ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "source-over";
+    const segs = [];
+    for (const p of parts) {
+      const w = windAt(p.lon, p.lat);
+      if (!w || ++p.age > MAXAGE) { spawn(p); p.age = 0; continue; }
+      const a = proj([p.lon, p.lat]);
+      p.lon += w[0] * K / Math.cos(p.lat * Math.PI / 180); p.lat += w[1] * K;
+      segs.push(a, proj([p.lon, p.lat]));
+    }
+    // Garis gelap tipis di bawah garis putih: partikel terlihat di atas warna terang maupun laut gelap.
+    for (const [style, width] of [["rgba(15,23,42,0.45)", 2.4], ["rgba(255,255,255,0.85)", 1.1]]) {
+      ctx.strokeStyle = style; ctx.lineWidth = width; ctx.beginPath();
+      for (let i = 0; i < segs.length; i += 2) { ctx.moveTo(...segs[i]); ctx.lineTo(...segs[i + 1]); }
+      ctx.stroke();
+    }
+    requestAnimationFrame(frame);
+  })();
+}
+
+// --- Legenda -------------------------------------------------------------------------------
+const stops = d3.range(0, 1.01, 0.1).map(t => interp(t)).join(",");
+const maxW = D.wind ? d3.max(D.wind.u.flatMap((r, i) => r.map((u, j) => Math.hypot(u, D.wind.v[i][j])))) : null;
+document.getElementById("legend").innerHTML =
+  `<span>${D.label} (${D.unit})</span><span>${lo.toFixed(1)}</span>` +
+  `<span id="bar" style="background:linear-gradient(90deg,${stops})"></span><span>${hi.toFixed(1)}</span>` +
+  (D.wind ? `<span>〰 garis putih = aliran angin (maks ${maxW.toFixed(0)} km/jam)</span>` : "");
+</script>

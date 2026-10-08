@@ -39,6 +39,33 @@ def fetch_latest(locations, past_days=2, session=None):
     return pd.concat(frames, ignore_index=True), now
 
 
+WIND_LATS = np.round(np.arange(-6.0, -8.76, -0.25), 2)    # utara -> selatan (sedikit melebihi bingkai peta)
+WIND_LONS = np.round(np.arange(108.25, 112.01, 0.25), 2)  # barat -> timur
+
+
+def fetch_wind_grid(hours=25, session=None):
+    """Medan angin grid 0,25° (darat + laut) dari jam sekarang sampai +24 jam, untuk animasi dasbor.
+
+    Satu request untuk seluruh grid. u/v dalam km/jam, baris = lintang (utara dulu).
+    """
+    session = session or make_session()
+    lat, lon = np.meshgrid(WIND_LATS, WIND_LONS, indexing="ij")
+    payload = _get(session, FORECAST_URL, dict(
+        latitude=",".join(map(str, lat.ravel())), longitude=",".join(map(str, lon.ravel())),
+        hourly="wind_speed_10m,wind_direction_10m", models=settings.OPENMETEO_MODEL,
+        forecast_days=2, timezone="GMT"))
+    now = pd.Timestamp.now(tz="UTC").floor("h").tz_localize(None)
+    times = pd.to_datetime(payload[0]["hourly"]["time"])
+    sel = np.flatnonzero(times >= now)[:hours]
+    speed = np.array([d["hourly"]["wind_speed_10m"] for d in payload], dtype=float)[:, sel]
+    rad = np.deg2rad(np.array([d["hourly"]["wind_direction_10m"] for d in payload], dtype=float)[:, sel])
+    u, v = -speed * np.sin(rad), -speed * np.cos(rad)  # arah datang -> vektor tiupan
+    shape = (len(sel), len(WIND_LATS), len(WIND_LONS))
+    return dict(times=[t.strftime("%Y-%m-%d %H:%M") for t in times[sel]],
+                lats=WIND_LATS.tolist(), lons=WIND_LONS.tolist(),
+                u=np.round(u.T.reshape(shape), 1).tolist(), v=np.round(v.T.reshape(shape), 1).tolist())
+
+
 def load_artifact(model_dir, locations):
     """Muat model terlatih; kembalikan None jika folder tidak lengkap."""
     model_dir = Path(model_dir) if model_dir else None

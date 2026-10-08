@@ -8,16 +8,18 @@ Menulis ke <out>:
   predictions/YYYY/MM/DD/HH.csv.gz       arsip prediksi
   observations/YYYY/MM/DD/HH.csv.gz      arsip data jam terakhir (kebenaran dasar realtime)
   alerts_state.json                      riwayat peringatan
+  wind.json                              grid angin 0,25° sekarang s.d. +24 jam (animasi dasbor)
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
 
 from whocry import settings
 from whocry.realtime.alerts import process
-from whocry.realtime.predict import fetch_latest, forecast, load_artifact
+from whocry.realtime.predict import fetch_latest, fetch_wind_grid, forecast, load_artifact
 
 OBS_COLS = ["adm2", "time"] + settings.TARGETS + ["wind_speed_10m", "wind_direction_10m"]
 
@@ -44,6 +46,12 @@ def main():
     pred.to_csv(out / "latest_predictions.csv", index=False)
     recent = hourly[hourly["time"] > stamp - pd.Timedelta(hours=48)][OBS_COLS]
     recent.to_csv(out / "latest_observations.csv", index=False)
+
+    # Grid angin cukup sekali per jam (workflow bisa jalan 3x/jam; hemat kuota Open-Meteo).
+    wind_path = out / "wind.json"
+    old = json.loads(wind_path.read_text()) if wind_path.exists() else {}
+    if old.get("times", [None])[0] != f"{now:%Y-%m-%d %H:%M}":
+        wind_path.write_text(json.dumps(fetch_wind_grid(), separators=(",", ":")))
 
     new_events = process(pred, locations, out / "alerts_state.json")
     print(f"diterbitkan {stamp} UTC dengan {pred['model'].iloc[0]}; {len(pred)} baris; "

@@ -22,13 +22,14 @@ BMKG = os.environ.get("WHOCRY_BMKG_DIR", f"{REPO_RAW}/data-bmkg")
 CONFIG = Path(__file__).resolve().parents[1] / "config"
 WIB = pd.Timedelta(hours=7)
 
-# kolom: (label, satuan, kolom BMKG, skema warna peta)
+# kolom: (label, satuan, kolom BMKG, interpolator d3 untuk peta, dibalik?)
 VARS = {
-    "temperature_2m": ("Suhu", "°C", "t", "redyellowblue"),
-    "relative_humidity_2m": ("Kelembapan", "%", "hu", "blues"),
-    "cloud_cover": ("Tutupan awan", "%", "tcc", "greys"),
-    "precipitation": ("Curah hujan", "mm/jam", "tp", "purpleblue"),
+    "temperature_2m": ("Suhu", "°C", "t", "interpolateRdYlBu", True),
+    "relative_humidity_2m": ("Kelembapan", "%", "hu", "interpolateBlues", False),
+    "cloud_cover": ("Tutupan awan", "%", "tcc", "interpolateGreys", False),
+    "precipitation": ("Curah hujan", "mm/jam", "tp", "interpolatePuBu", False),
 }
+MAP_HTML = (Path(__file__).parent / "wind_map.html").read_text()
 THRESHOLDS = {"precipitation": (">=", 10.0), "temperature_2m": (">=", 35.0),
               "relative_humidity_2m": ("<=", 40.0)}
 RANGES = {"24 jam": 1, "3 hari": 3, "7 hari": 7, "30 hari": 30, "90 hari": 90, "1 tahun": 365}
@@ -67,9 +68,14 @@ def load_live():
         bmkg["waktu"] = bmkg["utc_datetime"] + WIB
     except Exception:  # dasbor tetap jalan walau data BMKG belum tersedia
         bmkg = pd.DataFrame()
+    try:
+        wind = requests.get(f"{LIVE}/wind.json", timeout=30).json() if LIVE.startswith("http") \
+            else json.loads(Path(LIVE, "wind.json").read_text())
+    except Exception:  # peta tetap tampil tanpa animasi angin
+        wind = None
     pred["waktu"] = pred["valid_time"] + WIB
     obs["waktu"] = obs["time"] + WIB
-    return loc, pred, obs, bmkg
+    return loc, pred, obs, bmkg, wind
 
 
 @st.cache_data
@@ -90,23 +96,25 @@ def load_history(lat, lon):
     return h.dropna()
 
 
-def choropleth(features, values, var, title):
-    label, unit, _, scheme = VARS[var]
-    lookup = alt.LookupData(values, key="adm2", fields=["nilai", "teks"])
-    return alt.Chart(alt.Data(values=features)).mark_geoshape(stroke="white", strokeWidth=0.8).encode(
-        color=alt.Color("nilai:Q", title=f"{label} ({unit})",
-                        scale=alt.Scale(scheme=scheme, reverse=var == "temperature_2m"),
-                        legend=alt.Legend(orient="bottom", gradientLength=300)),
-        tooltip=[alt.Tooltip("properties.nama:N", title="Wilayah"), alt.Tooltip("teks:N", title=label)],
-    ).transform_lookup(lookup="properties.adm2", from_=lookup).project("mercator").properties(
-        height=430, title=title)
+def wind_map(features, values, var, title, wind, frame_time, animate):
+    """Peta isi + partikel angin (komponen HTML/d3). frame_time: waktu UTC frame angin yang dipakai."""
+    label, unit, _, scheme, reverse = VARS[var]
+    w = None
+    if wind:  # frame angin terdekat dengan waktu peta
+        times = pd.to_datetime(wind["times"])
+        i = int(abs(times - frame_time).argmin())
+        w = dict(lats=wind["lats"], lons=wind["lons"], u=wind["u"][i], v=wind["v"][i])
+    data = dict(features=features, title=title, label=label, unit=unit, scheme=scheme, reverse=reverse,
+                values={a: (None if pd.isna(v) else float(v)) for a, v in values.items()},
+                wind=w, animate=animate, height=470)
+    st.iframe(MAP_HTML.replace("/*DATA*/null", json.dumps(data)), height=540)  # data dari pipeline sendiri
 
 
 def main():
     st.set_page_config(page_title="Cuaca Jawa Tengah & DIY", page_icon="🌦️", layout="wide")
     st.title("🌦️ Prediksi Cuaca Realtime — Jawa Tengah & DIY")
     try:
-        loc, pred, obs, bmkg = load_live()
+        loc, pred, obs, bmkg, wind = load_live()
     except Exception as e:
         st.error(f"Data realtime belum tersedia: {e}")
         return
@@ -129,21 +137,24 @@ def main():
     rng = sb.selectbox("Rentang waktu", list(RANGES), index=2)
     show_pred = sb.checkbox("Tampilkan prediksi 24 jam", value=True)
     show_bmkg = sb.checkbox("Tampilkan prakiraan BMKG", value=False)
+    sb.header("Tampilan peta")
+    animate = sb.checkbox("Animasi angin", value=True)
 
     # --- Peta -------------------------------------------------------------------------
     label, unit = VARS[map_var][:2]
     if map_h == 0:
         cur = obs[obs["time"] == obs["time"].max()].set_index("adm2")[map_var]
-        when = f"{tgl(obs['waktu'].max())} WIB"
+        when, frame_time = f"{tgl(obs['waktu'].max())} WIB", obs["time"].max()
     else:
         cur = pred[pred["horizon"] == map_h].set_index("adm2")[map_var]
-        when = f"prediksi {tgl(issued + pd.Timedelta(hours=map_h))} WIB"
+        frame_time = pred["issued_at"].max() + pd.Timedelta(hours=map_h)
+        when = f"prediksi {tgl(frame_time + WIB)} WIB"
     table = loc[["adm2", "nama"]].assign(nilai=loc["adm2"].map(cur).round(1))
-    table["teks"] = table["nilai"].map(lambda v: f"{v:.1f} {unit}")
 
     left, right = st.columns([3, 2])
     with left:
-        st.altair_chart(choropleth(load_geo(), table, map_var, f"{label} — {when}"), width="stretch")
+        wind_map(load_geo(), table.set_index("adm2")["nilai"], map_var, f"{label} — {when}",
+                 wind, frame_time, animate)
     with right:
         st.dataframe(table.sort_values("nilai", ascending=False)[["nama", "nilai"]].rename(
             columns={"nama": "Kabupaten/kota", "nilai": f"{label} ({unit})"}),
@@ -215,7 +226,7 @@ def main():
         st.success("Tidak ada prediksi yang melewati ambang peringatan.")
 
     st.divider()
-    st.caption("Data: Open-Meteo (ECMWF IFS, CC-BY 4.0) · Batas wilayah: geoBoundaries/BPS (CC BY 3.0 IGO) · "
+    st.caption("Data: Open-Meteo (ECMWF IFS, CC-BY 4.0; angin = prakiraan ECMWF IFS) · Batas wilayah: geoBoundaries/BPS (CC BY 3.0 IGO) · "
                "Prakiraan pembanding: BMKG · Penelitian skripsi — github.com/SirojMun/akuKehujanan")
 
 
