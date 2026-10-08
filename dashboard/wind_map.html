@@ -1,4 +1,5 @@
-<!-- Peta isi (choropleth) + animasi partikel angin. Diisi oleh app.py (penanda DATA di bawah). -->
+<!-- Satu peta untuk empat variabel: warna = suhu, ikon = awan + hujan, angka = kelembapan,
+     partikel = angin. Diisi oleh app.py (penanda DATA di bawah). -->
 <div id="stage">
   <svg id="map"></svg><canvas id="wind"></canvas>
   <div id="title"></div><div id="legend"></div><div id="tip"></div>
@@ -12,12 +13,14 @@
   #wind { pointer-events: none; }
   #map path { stroke: rgba(255,255,255,.55); stroke-width: .7; }
   #map path:hover { stroke: #fff; stroke-width: 2; }
+  #map text { pointer-events: none; text-anchor: middle; }
+  #map .rh { font-size: 10px; font-weight: 600; fill: #fff; paint-order: stroke; stroke: rgba(15,23,42,.8); stroke-width: 2.5px; }
   #tip { position: absolute; display: none; pointer-events: none; background: rgba(15,23,42,.92); color: #fff;
-         padding: 6px 9px; border-radius: 6px; font-size: 13px; line-height: 1.35; white-space: nowrap; }
+         padding: 6px 9px; border-radius: 6px; font-size: 13px; line-height: 1.4; white-space: nowrap; }
   #legend { position: absolute; left: 12px; bottom: 10px; max-width: calc(100% - 24px);
-            background: rgba(15,23,42,.82); padding: 7px 10px; border-radius: 6px; font-size: 12px; line-height: 1.5; }
-  #legend .row { display: flex; gap: 8px; align-items: center; }
-  #bar { width: 200px; height: 10px; border-radius: 3px; }
+            background: rgba(15,23,42,.82); padding: 7px 10px; border-radius: 6px; font-size: 12px; line-height: 1.6; }
+  #legend .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #bar { width: 180px; height: 10px; border-radius: 3px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script>
@@ -29,14 +32,14 @@ document.getElementById("title").textContent = D.title;
 const stage = d3.select("#stage").style("height", H + "px");
 const svg = d3.select("#map").attr("width", W).attr("height", H);
 // Sisakan ruang atas (judul) dan bawah (legenda) agar tidak menutupi wilayah.
-const proj = d3.geoMercator().fitExtent([[8, 38], [W - 8, H - 84]], {type: "FeatureCollection", features: D.features});
+const proj = d3.geoMercator().fitExtent([[8, 38], [W - 8, H - 70]], {type: "FeatureCollection", features: D.features});
 const path = d3.geoPath(proj);
 
-// Warna isi kalem: hanya pakai 15–85% rentang skema agar tidak terlalu gelap dan partikel tetap terlihat.
-const vals = Object.values(D.values).filter(v => v !== null);
-const lo = d3.min(vals), hi = d3.max(vals) > lo ? d3.max(vals) : lo + 1;
-const interp = t => d3[D.scheme](0.15 + 0.7 * (D.reverse ? 1 - t : t));
-const color = v => v === null || v === undefined ? "#64748b" : interp((v - lo) / (hi - lo));
+// Warna isi = suhu; hanya 15–85% rentang skema agar tidak terlalu gelap dan partikel tetap terlihat.
+const temps = Object.values(D.values).map(r => r.t);
+const lo = d3.min(temps), hi = d3.max(temps) > lo ? d3.max(temps) : lo + 1;
+const interp = t => d3.interpolateRdYlBu(0.15 + 0.7 * (1 - t));
+const color = r => r ? interp((r.t - lo) / (hi - lo)) : "#64748b";
 
 // --- Angin -------------------------------------------------------------------------------
 function windAt(lon, lat, clamp = false) {  // interpolasi bilinear; di luar grid null, atau titik tepi jika clamp
@@ -56,14 +59,8 @@ function windAt(lon, lat, clamp = false) {  // interpolasi bilinear; di luar gri
 function windText(lon, lat) {
   const w = windAt(lon, lat);
   if (!w) return "";
-  const spd = Math.hypot(w[0], w[1]);
   const from = (Math.atan2(-w[0], -w[1]) * 180 / Math.PI + 360) % 360;   // arah datang (konvensi meteorologi)
-  return `<br>Angin ${spd.toFixed(0)} km/jam dari ${ARAH[Math.round(from / 45) % 8]}`;
-}
-
-function category(v) {  // makna nilai dalam kata, mis. kelembapan 92% -> "sangat lembap"
-  const c = (D.categories || []).find(([max]) => v <= max);
-  return c ? c[1] : "";
+  return `<br>Angin: ${Math.hypot(w[0], w[1]).toFixed(0)} km/jam dari ${ARAH[Math.round(from / 45) % 8]}`;
 }
 
 // --- Poligon + tooltip -------------------------------------------------------------------
@@ -73,16 +70,29 @@ svg.selectAll("path").data(D.features).join("path")
   .attr("fill", f => color(D.values[f.properties.adm2]))
   .on("mousemove", (ev, f) => {
     const [x, y] = d3.pointer(ev, stage.node());
-    const v = D.values[f.properties.adm2];
+    const r = D.values[f.properties.adm2];
     const [lon, lat] = proj.invert([x, y]);
-    tip.style("display", "block").style("left", Math.min(x + 14, W - 230) + "px").style("top", (y + 14) + "px")
-       .html(`<b>${f.properties.nama}</b>` +
-             (v == null ? "" : `<br>${D.label}: ${v.toFixed(1)} ${D.unit}` + (category(v) ? ` (${category(v)})` : "")) +
+    tip.style("display", "block").style("left", Math.min(x + 14, W - 250) + "px").style("top", (y + 14) + "px")
+       .html(`<b>${f.properties.nama}</b>` + (r ? `<br>${r.icon} ${r.cuaca}` +
+             `<br>Suhu: ${r.t.toFixed(1)} °C<br>Kelembapan: ${r.rh.toFixed(0)}%` +
+             `<br>Tutupan awan: ${r.cc.toFixed(0)}%<br>Curah hujan: ${r.p.toFixed(1)} mm/jam` : "") +
              windText(lon, lat));
   })
   .on("mouseleave", () => tip.style("display", "none"));
 
-// --- Partikel ------------------------------------------------------------------------------
+// --- Ikon cuaca + kelembapan (wilayah besar dulu; yang bertabrakan dilewati) -----------------
+const placed = [];
+const byArea = D.features.filter(f => D.values[f.properties.adm2]).sort((a, b) => path.area(b) - path.area(a));
+for (const f of byArea) {
+  const [x, y] = path.centroid(f);
+  if (placed.some(([px, py]) => Math.abs(px - x) < 30 && Math.abs(py - y) < 34)) continue;
+  placed.push([x, y]);
+  const r = D.values[f.properties.adm2];
+  svg.append("text").attr("x", x).attr("y", y).attr("font-size", 18).text(r.icon);
+  svg.append("text").attr("class", "rh").attr("x", x).attr("y", y + 13).text(`${r.rh.toFixed(0)}%`);
+}
+
+// --- Partikel angin -------------------------------------------------------------------------
 const canvas = document.getElementById("wind");
 canvas.width = W; canvas.height = H;
 const ctx = canvas.getContext("2d");
@@ -115,12 +125,12 @@ if (D.wind && D.animate) {
   })();
 }
 
-// --- Legenda -------------------------------------------------------------------------------
+// --- Legenda ----------------------------------------------------------------------------------
 const stops = d3.range(0, 1.01, 0.1).map(t => interp(t)).join(",");
 const maxW = D.wind ? d3.max(D.wind.u.flatMap((r, i) => r.map((u, j) => Math.hypot(u, D.wind.v[i][j])))) : null;
 document.getElementById("legend").innerHTML =
-  `<div class="row"><b>${D.label} (${D.unit})</b><span>${lo.toFixed(1)}</span>` +
+  `<div class="row"><b>Suhu (°C)</b><span>${lo.toFixed(1)}</span>` +
   `<span id="bar" style="background:linear-gradient(90deg,${stops})"></span><span>${hi.toFixed(1)}</span></div>` +
-  `<div>${D.hint}</div>` +
-  (D.wind ? `<div>〰 garis putih = aliran angin, makin cepat = makin kencang (maks ${maxW.toFixed(0)} km/jam)</div>` : "");
+  `<div class="row">${D.icons.map(([i, l]) => `<span>${i} ${l}</span>`).join("")}` +
+  `<span>92% kelembapan</span>` + (D.wind ? `<span>〰 angin (maks ${maxW.toFixed(0)} km/jam)</span>` : "") + `</div>`;
 </script>

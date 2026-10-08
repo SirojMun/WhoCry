@@ -22,27 +22,27 @@ BMKG = os.environ.get("WHOCRY_BMKG_DIR", f"{REPO_RAW}/data-bmkg")
 CONFIG = Path(__file__).resolve().parents[1] / "config"
 WIB = pd.Timedelta(hours=7)
 
-# kolom: (label, satuan, kolom BMKG, interpolator d3 untuk peta, dibalik?)
+# kolom: (label, satuan, kolom BMKG)
 VARS = {
-    "temperature_2m": ("Suhu", "°C", "t", "interpolateRdYlBu", True),
-    "relative_humidity_2m": ("Kelembapan", "%", "hu", "interpolateBlues", False),
-    "cloud_cover": ("Tutupan awan", "%", "tcc", "interpolateGreys", False),
-    "precipitation": ("Curah hujan", "mm/jam", "tp", "interpolatePuBu", False),
+    "temperature_2m": ("Suhu", "°C", "t"),
+    "relative_humidity_2m": ("Kelembapan", "%", "hu"),
+    "cloud_cover": ("Tutupan awan", "%", "tcc"),
+    "precipitation": ("Curah hujan", "mm/jam", "tp"),
 }
 MAP_HTML = (Path(__file__).parent / "wind_map.html").read_text()
-# Cara membaca warna peta + kategori nilai (batas atas, makna) untuk tooltip.
-MAP_HELP = {
-    "temperature_2m": ("Biru = sejuk, merah = panas.",
-                       [(22, "sejuk"), (27, "nyaman"), (32, "hangat"), (99, "panas")]),
-    "relative_humidity_2m": ("Seberapa jenuh udara oleh uap air. Muda = kering, biru tua = lembap; "
-                             "100% = jenuh (berpotensi kabut/hujan).",
-                             [(40, "sangat kering"), (60, "kering"), (80, "sedang"), (95, "lembap"),
-                              (100, "sangat lembap / jenuh")]),
-    "cloud_cover": ("Bagian langit yang tertutup awan. Terang = cerah, abu tua = mendung.",
-                    [(20, "cerah"), (60, "berawan sebagian"), (90, "berawan"), (100, "mendung")]),
-    "precipitation": ("Jumlah hujan dalam 1 jam. Muda = tidak/sedikit hujan, biru tua = deras.",
-                      [(0.09, "tidak hujan"), (5, "ringan"), (10, "sedang"), (20, "lebat"), (999, "sangat lebat")]),  # BMKG per jam
-}
+ICONS = [("☀️", "cerah"), ("🌤️", "cerah berawan"), ("⛅", "berawan"), ("☁️", "mendung"),
+         ("🌧️", "hujan"), ("⛈️", "hujan lebat")]
+
+
+def cuaca(cc, p, jam_wib):
+    """Kondisi cuaca berbasis aturan dari tutupan awan (%) dan curah hujan (mm/jam)."""
+    if p >= 10:
+        return ICONS[5]
+    if p >= 0.1:
+        return ICONS[4]
+    icon = ICONS[0] if cc < 20 else ICONS[1] if cc < 60 else ICONS[2] if cc < 90 else ICONS[3]
+    malam = jam_wib >= 18 or jam_wib < 6
+    return ("🌙", "cerah") if malam and icon == ICONS[0] else icon
 THRESHOLDS = {"precipitation": (">=", 10.0), "temperature_2m": (">=", 35.0),
               "relative_humidity_2m": ("<=", 40.0)}
 RANGES = {"24 jam": 1, "3 hari": 3, "7 hari": 7, "30 hari": 30, "90 hari": 90, "1 tahun": 365}
@@ -109,19 +109,17 @@ def load_history(lat, lon):
     return h.dropna()
 
 
-def wind_map(features, values, var, title, wind, frame_time, animate):
-    """Peta isi + partikel angin (komponen HTML/d3). frame_time: waktu UTC frame angin yang dipakai."""
-    label, unit, _, scheme, reverse = VARS[var]
+def wind_map(features, table, title, wind, frame_time, animate, malam):
+    """Satu peta untuk empat variabel + partikel angin (komponen HTML/d3)."""
     w = None
     if wind:  # frame angin terdekat dengan waktu peta
         times = pd.to_datetime(wind["times"])
         i = int(abs(times - frame_time).argmin())
         w = dict(lats=wind["lats"], lons=wind["lons"], u=wind["u"][i], v=wind["v"][i])
-    hint, categories = MAP_HELP[var]
-    data = dict(features=features, title=title, label=label, unit=unit, scheme=scheme, reverse=reverse,
-                hint=hint, categories=categories,
-                values={a: (None if pd.isna(v) else float(v)) for a, v in values.items()},
-                wind=w, animate=animate, height=560)
+    values = {r.adm2: dict(t=r.t, rh=r.rh, cc=r.cc, p=r.p, icon=r.icon, cuaca=r.cuaca)
+              for r in table.dropna(subset=["t"]).itertuples()}
+    icons = [("🌙", "cerah")] + ICONS[1:] if malam else ICONS
+    data = dict(features=features, title=title, values=values, icons=icons, wind=w, animate=animate, height=560)
     st.iframe(MAP_HTML.replace("/*DATA*/null", json.dumps(data)), height=570)  # data dari pipeline sendiri
 
 
@@ -141,7 +139,6 @@ def main():
     # --- Filter --------------------------------------------------------------------
     sb = st.sidebar
     sb.header("Peta")
-    map_var = sb.selectbox("Variabel peta", list(VARS), format_func=lambda v: VARS[v][0])
     map_h = sb.select_slider("Waktu peta", [0, 1, 3, 6, 12, 24], value=0,
                              format_func=lambda h: "Sekarang" if h == 0 else f"+{h} jam")
     sb.header("Grafik")
@@ -155,24 +152,29 @@ def main():
     sb.header("Tampilan peta")
     animate = sb.checkbox("Animasi angin", value=True)
 
-    # --- Peta -------------------------------------------------------------------------
-    label, unit = VARS[map_var][:2]
+    # --- Peta (suhu = warna, awan + hujan = ikon, kelembapan = angka, angin = partikel) ------------
+    cols = {"temperature_2m": "t", "relative_humidity_2m": "rh", "cloud_cover": "cc", "precipitation": "p"}
     if map_h == 0:
-        cur = obs[obs["time"] == obs["time"].max()].set_index("adm2")[map_var]
-        when, frame_time = f"{tgl(obs['waktu'].max())} WIB", obs["time"].max()
+        cur = obs[obs["time"] == obs["time"].max()].set_index("adm2")[list(cols)]
+        frame_time = obs["time"].max()
     else:
-        cur = pred[pred["horizon"] == map_h].set_index("adm2")[map_var]
+        cur = pred[pred["horizon"] == map_h].set_index("adm2")[list(cols)]
         frame_time = pred["issued_at"].max() + pd.Timedelta(hours=map_h)
-        when = f"prediksi {tgl(frame_time + WIB)} WIB"
-    table = loc[["adm2", "nama"]].assign(nilai=loc["adm2"].map(cur).round(1))
+    when_wib = frame_time + WIB
+    table = loc[["adm2", "nama"]].join(cur.rename(columns=cols), on="adm2")
+    table[["icon", "cuaca"]] = [cuaca(cc, p, when_wib.hour) if pd.notna(cc) else ("", "")
+                                for cc, p in zip(table["cc"], table["p"])]
+    title = ("Sekarang — " if map_h == 0 else f"Prediksi +{map_h} jam — ") + f"{tgl(when_wib)} WIB"
 
     left, right = st.columns([3, 2])
     with left:
-        wind_map(load_geo(), table.set_index("adm2")["nilai"], map_var, f"{label} — {when}",
-                 wind, frame_time, animate)
+        wind_map(load_geo(), table, title, wind, frame_time, animate, malam=when_wib.hour >= 18 or when_wib.hour < 6)
     with right:
-        st.dataframe(table.sort_values("nilai", ascending=False)[["nama", "nilai"]].rename(
-            columns={"nama": "Kabupaten/kota", "nilai": f"{label} ({unit})"}),
+        st.dataframe(
+            table.assign(cuaca=table["icon"] + " " + table["cuaca"]).sort_values("t", ascending=False)[
+                ["nama", "cuaca", "t", "rh", "cc", "p"]].round(1),
+            column_config={"nama": "Kabupaten/kota", "cuaca": "Cuaca", "t": "Suhu (°C)", "rh": "Kelembapan (%)",
+                           "cc": "Awan (%)", "p": "Hujan (mm/jam)"},
             hide_index=True, height=570, width="stretch")
 
     # --- Grafik garis -------------------------------------------------------------------
