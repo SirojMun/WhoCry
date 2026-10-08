@@ -30,6 +30,19 @@ VARS = {
     "precipitation": ("Curah hujan", "mm/jam", "tp", "interpolatePuBu", False),
 }
 MAP_HTML = (Path(__file__).parent / "wind_map.html").read_text()
+# Cara membaca warna peta + kategori nilai (batas atas, makna) untuk tooltip.
+MAP_HELP = {
+    "temperature_2m": ("Biru = sejuk, merah = panas.",
+                       [(22, "sejuk"), (27, "nyaman"), (32, "hangat"), (99, "panas")]),
+    "relative_humidity_2m": ("Seberapa jenuh udara oleh uap air. Muda = kering, biru tua = lembap; "
+                             "100% = jenuh (berpotensi kabut/hujan).",
+                             [(40, "sangat kering"), (60, "kering"), (80, "sedang"), (95, "lembap"),
+                              (100, "sangat lembap / jenuh")]),
+    "cloud_cover": ("Bagian langit yang tertutup awan. Terang = cerah, abu tua = mendung.",
+                    [(20, "cerah"), (60, "berawan sebagian"), (90, "berawan"), (100, "mendung")]),
+    "precipitation": ("Jumlah hujan dalam 1 jam. Muda = tidak/sedikit hujan, biru tua = deras.",
+                      [(0.09, "tidak hujan"), (5, "ringan"), (10, "sedang"), (20, "lebat"), (999, "sangat lebat")]),  # BMKG per jam
+}
 THRESHOLDS = {"precipitation": (">=", 10.0), "temperature_2m": (">=", 35.0),
               "relative_humidity_2m": ("<=", 40.0)}
 RANGES = {"24 jam": 1, "3 hari": 3, "7 hari": 7, "30 hari": 30, "90 hari": 90, "1 tahun": 365}
@@ -104,10 +117,12 @@ def wind_map(features, values, var, title, wind, frame_time, animate):
         times = pd.to_datetime(wind["times"])
         i = int(abs(times - frame_time).argmin())
         w = dict(lats=wind["lats"], lons=wind["lons"], u=wind["u"][i], v=wind["v"][i])
+    hint, categories = MAP_HELP[var]
     data = dict(features=features, title=title, label=label, unit=unit, scheme=scheme, reverse=reverse,
+                hint=hint, categories=categories,
                 values={a: (None if pd.isna(v) else float(v)) for a, v in values.items()},
-                wind=w, animate=animate, height=470)
-    st.iframe(MAP_HTML.replace("/*DATA*/null", json.dumps(data)), height=540)  # data dari pipeline sendiri
+                wind=w, animate=animate, height=560)
+    st.iframe(MAP_HTML.replace("/*DATA*/null", json.dumps(data)), height=570)  # data dari pipeline sendiri
 
 
 def main():
@@ -158,7 +173,7 @@ def main():
     with right:
         st.dataframe(table.sort_values("nilai", ascending=False)[["nama", "nilai"]].rename(
             columns={"nama": "Kabupaten/kota", "nilai": f"{label} ({unit})"}),
-            hide_index=True, height=470, width="stretch")
+            hide_index=True, height=570, width="stretch")
 
     # --- Grafik garis -------------------------------------------------------------------
     if not chosen or not chart_vars:
