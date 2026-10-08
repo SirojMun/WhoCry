@@ -9,8 +9,8 @@ Hasil di /kaggle/working/outputs/<STAGE>/; unduh dengan
 `kaggle kernels output sirojmunir/whocry-train -p outputs/kaggle`.
 """
 
-STAGE = "search"
-BEST = dict(hidden=64, layers=1, dropout=0.1, lr=1e-3)   # isi dari outputs/search/summary.csv
+STAGE = "main"
+BEST = dict(hidden=128, layers=1, dropout=0.0, lr=1e-3)  # dari search/hp_summary.csv (2026-10-08)
 BEST_MODEL, BEST_VARIANT = "gru", "S2"                    # isi dari rekap tahap main
 TIME_BUDGET_H = 10.5  # berhenti memulai run baru setelah ini agar output sempat tersimpan
 
@@ -23,9 +23,9 @@ import sys
 import time
 from pathlib import Path
 
-subprocess.run("git clone -q --depth 1 https://github.com/SirojMun/akuKehujanan.git repo",
+subprocess.run("git clone -q --depth 1 https://github.com/SirojMun/akuKehujanan.git /tmp/repo",
                shell=True, check=True)
-sys.path[:0] = ["repo/src", "repo/scripts"]
+sys.path[:0] = ["/tmp/repo/src", "/tmp/repo/scripts"]  # di /tmp agar tidak ikut output
 
 import pandas as pd  # noqa: E402
 import torch  # noqa: E402
