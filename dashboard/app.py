@@ -30,6 +30,11 @@ VARS = {
     "precipitation": ("Curah hujan", "mm/jam", "tp"),
 }
 MAP_HTML = (Path(__file__).parent / "wind_map.html").read_text()
+# Sidebar melayang di atas halaman (tidak menggeser isi) dan menggelapkan latar saat terbuka.
+SIDEBAR_CSS = """<style>
+[data-testid="stSidebar"] { position: fixed !important; top: 0; left: 0; height: 100vh !important; z-index: 1000001; }
+[data-testid="stSidebar"][aria-expanded="true"] { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .4); }
+</style>"""
 ICONS = [("☀️", "cerah"), ("🌤️", "cerah berawan"), ("⛅", "berawan"), ("☁️", "mendung"),
          ("🌧️", "hujan"), ("⛈️", "hujan lebat")]
 
@@ -124,7 +129,9 @@ def wind_map(features, table, title, wind, frame_time, animate, malam):
 
 
 def main():
-    st.set_page_config(page_title="Cuaca Jawa Tengah & DIY", page_icon="🌦️", layout="wide")
+    st.set_page_config(page_title="Cuaca Jawa Tengah & DIY", page_icon="🌦️", layout="wide",
+                       initial_sidebar_state="collapsed")  # fokus pertama ke peta
+    st.markdown(SIDEBAR_CSS, unsafe_allow_html=True)
     st.title("🌦️ Prediksi Cuaca Realtime — Jawa Tengah & DIY")
     try:
         loc, pred, obs, bmkg, wind = load_live()
@@ -166,16 +173,18 @@ def main():
                                 for cc, p in zip(table["cc"], table["p"])]
     title = ("Sekarang — " if map_h == 0 else f"Prediksi +{map_h} jam — ") + f"{tgl(when_wib)} WIB"
 
-    left, right = st.columns([3, 2])
+    left, right = st.columns([4, 1])
     with left:
         wind_map(load_geo(), table, title, wind, frame_time, animate, malam=when_wib.hour >= 18 or when_wib.hour < 6)
-    with right:
+    with right:  # tabel ringkas; awan, hujan, dan angin ada di tooltip peta
         st.dataframe(
-            table.assign(cuaca=table["icon"] + " " + table["cuaca"]).sort_values("t", ascending=False)[
-                ["nama", "cuaca", "t", "rh", "cc", "p"]].round(1),
-            column_config={"nama": "Kabupaten/kota", "cuaca": "Cuaca", "t": "Suhu (°C)", "rh": "Kelembapan (%)",
-                           "cc": "Awan (%)", "p": "Hujan (mm/jam)"},
-            hide_index=True, height=570, width="stretch")
+            table.assign(nama=table["nama"].map(short).str.replace("Kota ", "")).sort_values("t", ascending=False)[
+                ["nama", "icon", "t", "rh"]].round(1),
+            column_config={"nama": st.column_config.TextColumn("Wilayah", width=112),
+                           "icon": st.column_config.TextColumn("", width=30),
+                           "t": st.column_config.NumberColumn("°C", width=44, format="%.1f"),
+                           "rh": st.column_config.NumberColumn("RH%", width=44, format="%d")},
+            hide_index=True, height=480, width="stretch")
 
     # --- Grafik garis -------------------------------------------------------------------
     if not chosen or not chart_vars:
