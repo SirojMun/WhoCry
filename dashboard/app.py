@@ -119,8 +119,8 @@ def wind_map(features, table, title, wind, frame_time, animate, malam):
     values = {r.adm2: dict(t=r.t, rh=r.rh, cc=r.cc, p=r.p, icon=r.icon, cuaca=r.cuaca)
               for r in table.dropna(subset=["t"]).itertuples()}
     icons = [("🌙", "cerah")] + ICONS[1:] if malam else ICONS
-    data = dict(features=features, title=title, values=values, icons=icons, wind=w, animate=animate, height=560)
-    st.iframe(MAP_HTML.replace("/*DATA*/null", json.dumps(data)), height=570)  # data dari pipeline sendiri
+    data = dict(features=features, title=title, values=values, icons=icons, wind=w, animate=animate)
+    st.iframe(MAP_HTML.replace("/*DATA*/null", json.dumps(data)), height="content")  # data dari pipeline sendiri
 
 
 def main():
