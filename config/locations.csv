@@ -34,3 +34,8 @@ adm2,nama,ibukota,lat,lon,elevasi,adm4_bmkg,desa_bmkg,jarak_bmkg_km,grid_lat,gri
 33.74,Kota Semarang,Semarang,-6.9904,110.42291,6.0,33.74.07.1005,Pleburan,0.61,-6.994727,110.430374
 33.75,Kota Pekalongan,Pekalongan,-6.89051,109.67615,5.0,33.75.02.1004,Kauman,0.2,-6.9244285,109.6543
 33.76,Kota Tegal,Tegal,-6.86745,109.13783,5.0,33.76.02.1004,Mangkukusuman,0.29,-6.85413,109.106995
+34.01,Kabupaten Kulon Progo,Wates,-7.85865,110.15715,18.0,34.01.02.1008,Wates,0.59,-7.9086113,110.11945
+34.02,Kabupaten Bantul,Bantul,-7.88775,110.32741,45.0,34.02.08.2003,Bantul,0.58,-7.9086113,110.34983
+34.03,Kabupaten Gunungkidul,Wonosari,-7.96485,110.60105,174.0,34.03.01.2001,Wonosari,0.96,-7.9789104,110.59778
+34.04,Kabupaten Sleman,Sleman,-7.69025,110.34199,255.0,34.04.13.2002,Triharjo,0.29,-7.697715,110.37447
+34.71,Kota Yogyakarta,Yogyakarta,-7.80135,110.36474,110.0,34.71.10.1002,Prawirodirjan,0.7,-7.768014,110.39183

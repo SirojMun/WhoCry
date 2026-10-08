@@ -1,4 +1,4 @@
-"""Unduh data historis Open-Meteo (ECMWF IFS) untuk 35 lokasi, satu file per lokasi per tahun.
+"""Unduh data historis Open-Meteo (ECMWF IFS) untuk semua lokasi, satu file per lokasi per tahun.
 
 Dapat dilanjutkan: tahun yang sudah lengkap dilewati. Laju dibatasi agar tidak
 melewati kuota per jam. Setelah selesai, semua file digabung menjadi

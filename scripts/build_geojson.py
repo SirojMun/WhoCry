@@ -1,4 +1,4 @@
-"""Bangun config/jateng.geojson: batas 35 kabupaten/kota Jawa Tengah untuk peta dasbor.
+"""Bangun config/wilayah.geojson: batas kabupaten/kota Jawa Tengah & DIY untuk peta dasbor.
 
 Sumber: geoBoundaries IDN ADM2 (BPS/OCHA, CC BY 3.0 IGO), versi simplified.
 
@@ -15,6 +15,7 @@ from whocry import settings
 URL = ("https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/IDN/ADM2/"
        "geoBoundaries-IDN-ADM2_simplified.geojson")
 NON_ADMIN = {"Hutan", "Wadung Kedungombo"}  # unit khusus di dalam Jateng; digambar abu-abu
+ALIASES = {"Gunung Kidul": "Gunungkidul"}  # ejaan geoBoundaries -> ejaan resmi
 
 
 def rounded(c):
@@ -48,7 +49,7 @@ def main():
     by_name = {n.replace("Kabupaten ", ""): (a, n) for a, n in zip(loc["adm2"], loc["nama"])}
     feats = []
     for f in src["features"]:
-        name = f["properties"]["shapeName"]
+        name = ALIASES.get(f["properties"]["shapeName"], f["properties"]["shapeName"])
         if name not in by_name and name not in NON_ADMIN:
             continue
         adm2, nama = by_name.get(name, (None, name))
@@ -60,7 +61,7 @@ def main():
         g = f["geometry"]
         polys = [g["coordinates"]] if g["type"] == "Polygon" else g["coordinates"]
         assert all(signed_area(p[0]) < 0 for p in polys), f["properties"]["nama"]
-    out = settings.ROOT / "config" / "jateng.geojson"
+    out = settings.ROOT / "config" / "wilayah.geojson"
     out.write_text(json.dumps({"type": "FeatureCollection", "features": feats}, separators=(",", ":")))
     print(f"{out}: {len(feats)} fitur, {out.stat().st_size / 1024:.0f} KB")
 

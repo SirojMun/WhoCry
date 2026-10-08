@@ -1,4 +1,4 @@
-"""Dasbor pemantauan cuaca realtime Jawa Tengah (Streamlit).
+"""Dasbor pemantauan cuaca realtime Jawa Tengah & DIY (Streamlit).
 
 Lokal:   streamlit run dashboard/app.py
 Prediksi & data terkini dibaca dari branch data-live dan data-bmkg di GitHub; riwayat
@@ -74,7 +74,7 @@ def load_live():
 
 @st.cache_data
 def load_geo():
-    return json.loads((CONFIG / "jateng.geojson").read_text())["features"]
+    return json.loads((CONFIG / "wilayah.geojson").read_text())["features"]
 
 
 @st.cache_data(ttl=3 * 3600, show_spinner="Mengambil riwayat dari Open-Meteo…")
@@ -103,8 +103,8 @@ def choropleth(features, values, var, title):
 
 
 def main():
-    st.set_page_config(page_title="Cuaca Jawa Tengah", page_icon="🌦️", layout="wide")
-    st.title("🌦️ Prediksi Cuaca Realtime — Jawa Tengah")
+    st.set_page_config(page_title="Cuaca Jawa Tengah & DIY", page_icon="🌦️", layout="wide")
+    st.title("🌦️ Prediksi Cuaca Realtime — Jawa Tengah & DIY")
     try:
         loc, pred, obs, bmkg = load_live()
     except Exception as e:
@@ -113,7 +113,7 @@ def main():
     names = loc.set_index("adm2")["nama"]
     issued = pred["issued_at"].max() + WIB
     model = pred["model"].iloc[0]
-    st.caption(f"Diterbitkan {tgl(issued)} WIB · model: **{model}** · 35 kabupaten/kota")
+    st.caption(f"Diterbitkan {tgl(issued)} WIB · model: **{model}** · {len(loc)} kabupaten/kota")
 
     # --- Filter --------------------------------------------------------------------
     sb = st.sidebar

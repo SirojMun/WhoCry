@@ -1,4 +1,4 @@
-"""Simpan satu snapshot prakiraan BMKG untuk 35 lokasi.
+"""Simpan satu snapshot prakiraan BMKG untuk semua lokasi di config/locations.csv.
 
     python scripts/collect_bmkg.py --out <folder>
 

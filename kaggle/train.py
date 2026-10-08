@@ -9,7 +9,7 @@ Hasil di /kaggle/working/outputs/<STAGE>/; unduh dengan
 `kaggle kernels output sirojmunir/whocry-train -p outputs/kaggle`.
 """
 
-STAGE = "main"
+STAGE = "search"  # diulang untuk 40 lokasi (Jateng + DIY)
 BEST = dict(hidden=128, layers=1, dropout=0.0, lr=1e-3)  # dari search/hp_summary.csv (2026-10-08)
 BEST_MODEL, BEST_VARIANT = "gru", "S2"                    # isi dari rekap tahap main
 TIME_BUDGET_H = 10.5  # berhenti memulai run baru setelah ini agar output sempat tersimpan

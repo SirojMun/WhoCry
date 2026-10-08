@@ -1,4 +1,4 @@
-"""Bangun config/locations.csv: 35 kabupaten/kota Jawa Tengah.
+"""Bangun config/locations.csv: 35 kabupaten/kota Jawa Tengah + 5 kabupaten/kota DIY.
 
 Langkah:
 1. Geocoding pusat pemerintahan via Nominatim (OSM).
@@ -68,6 +68,11 @@ REGENCIES = {
     "33.74": ("Kota Semarang", "Semarang", -6.982, 110.409),
     "33.75": ("Kota Pekalongan", "Pekalongan", -6.889, 109.675),
     "33.76": ("Kota Tegal", "Tegal", -6.869, 109.140),
+    "34.01": ("Kabupaten Kulon Progo", "Wates", -7.857, 110.158),
+    "34.02": ("Kabupaten Bantul", "Bantul", -7.888, 110.329),
+    "34.03": ("Kabupaten Gunungkidul", "Wonosari", -7.966, 110.601),
+    "34.04": ("Kabupaten Sleman", "Sleman", -7.716, 110.355),
+    "34.71": ("Kota Yogyakarta", "Yogyakarta", -7.797, 110.370),
 }
 
 
@@ -88,7 +93,7 @@ def load_codes():
     codes = {}
     with open(ROOT / "data" / "kodewilayah.csv", newline="", encoding="utf-8") as f:
         for code, name in csv.reader(f):
-            if code.startswith("33."):
+            if code.startswith(("33.", "34.")):
                 codes[code] = name
     return codes
 
@@ -102,8 +107,11 @@ def nominatim(path, **params):
     return r.json()
 
 
-def geocode(ibukota, approx_lat, approx_lon):
-    results = nominatim("search", q=f"{ibukota}, Jawa Tengah, Indonesia",
+PROVINCES = {"33": "Jawa Tengah", "34": "Daerah Istimewa Yogyakarta"}
+
+
+def geocode(ibukota, approx_lat, approx_lon, province):
+    results = nominatim("search", q=f"{ibukota}, {province}, Indonesia",
                         countrycodes="id", limit=10)
     places = [x for x in results if x.get("category") == "place"
               or x.get("class") == "place" or x.get("type") == "administrative"]
@@ -167,7 +175,7 @@ def main():
         if adm2 in cache and cache[adm2]["adm4_bmkg"]:
             rows.append(cache[adm2])
             continue
-        lat, lon = geocode(ibukota, alat, alon)
+        lat, lon = geocode(ibukota, alat, alon, PROVINCES[adm2[:2]])
         off = haversine_km(lat, lon, alat, alon)
         if off > 8:  # geocoding meleset jauh -> pakai perkiraan
             print(f"!! {nama}: geocode meleset {off:.1f} km, pakai perkiraan", file=sys.stderr)

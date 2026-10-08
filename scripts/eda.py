@@ -143,7 +143,7 @@ def plot_map(locations):
     for r in locations.itertuples():
         ax.annotate(r.ibukota, (r.lon, r.lat), fontsize=7, xytext=(3, 3), textcoords="offset points")
     plt.colorbar(sc, label="elevasi (m)")
-    ax.set_xlabel("bujur"); ax.set_ylabel("lintang"); ax.set_title("35 titik lokasi (pusat pemerintahan)")
+    ax.set_xlabel("bujur"); ax.set_ylabel("lintang"); ax.set_title(f"{len(locations)} titik lokasi (pusat pemerintahan)")
     ax.grid(alpha=.3)
     savefig(fig, "peta_lokasi")
     return coast
@@ -179,7 +179,7 @@ def main():
         f"- Proporsi jam tanpa hujan (= 0 mm): {rain['nol']:.1%}",
         f"- Proporsi jam ≥ 0,1 mm: {rain[0.1]:.1%}; ≥ 1 mm: {rain[1.0]:.1%}; ≥ 10 mm: {rain[10.0]:.2%}",
         "",
-        "## Autokorelasi (rata-rata 35 lokasi)",
+        f"## Autokorelasi (rata-rata {df['adm2'].nunique()} lokasi)",
         "",
         pd.DataFrame(acf).T.round(3).to_markdown(),
         "",

@@ -1,7 +1,7 @@
 # WhoCry
 
 Prediksi cuaca per jam (suhu, kelembapan, tutupan awan, curah hujan) untuk
-35 kabupaten/kota di Jawa Tengah menggunakan regresi linier, LSTM, dan GRU
+40 kabupaten/kota di Jawa Tengah dan DIY menggunakan regresi linier, LSTM, dan GRU
 dengan fitur spasial, disertai pelatihan ulang berkala dan sistem pemantauan *realtime*.
 
 ## Struktur
