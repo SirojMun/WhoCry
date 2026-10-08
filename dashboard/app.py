@@ -1,117 +1,206 @@
 """Dasbor pemantauan cuaca realtime Jawa Tengah (Streamlit).
 
 Lokal:   streamlit run dashboard/app.py
-Data dibaca dari branch data-live dan data-bmkg di GitHub. Untuk uji lokal,
-set WHOCRY_LIVE_DIR / WHOCRY_BMKG_DIR ke folder lokal.
+Prediksi & data terkini dibaca dari branch data-live dan data-bmkg di GitHub; riwayat
+sampai 1 tahun diambil langsung dari Open-Meteo per kabupaten yang dipilih.
+Untuk uji lokal, set WHOCRY_LIVE_DIR / WHOCRY_BMKG_DIR ke folder lokal.
 """
 
+import json
 import os
+from datetime import date, timedelta
 from pathlib import Path
 
 import altair as alt
 import pandas as pd
+import requests
 import streamlit as st
 
 REPO_RAW = "https://raw.githubusercontent.com/SirojMun/akuKehujanan"
 LIVE = os.environ.get("WHOCRY_LIVE_DIR", f"{REPO_RAW}/data-live")
 BMKG = os.environ.get("WHOCRY_BMKG_DIR", f"{REPO_RAW}/data-bmkg")
-LOCATIONS = Path(__file__).resolve().parents[1] / "config" / "locations.csv"
+CONFIG = Path(__file__).resolve().parents[1] / "config"
 WIB = pd.Timedelta(hours=7)
 
+# kolom: (label, satuan, kolom BMKG, skema warna peta)
 VARS = {
-    "temperature_2m": ("Suhu", "°C", "t"),
-    "relative_humidity_2m": ("Kelembapan", "%", "hu"),
-    "cloud_cover": ("Tutupan awan", "%", "tcc"),
-    "precipitation": ("Curah hujan", "mm/jam", "tp"),
+    "temperature_2m": ("Suhu", "°C", "t", "redyellowblue"),
+    "relative_humidity_2m": ("Kelembapan", "%", "hu", "blues"),
+    "cloud_cover": ("Tutupan awan", "%", "tcc", "greys"),
+    "precipitation": ("Curah hujan", "mm/jam", "tp", "purpleblue"),
 }
 THRESHOLDS = {"precipitation": (">=", 10.0), "temperature_2m": (">=", 35.0),
               "relative_humidity_2m": ("<=", 40.0)}
+RANGES = {"24 jam": 1, "3 hari": 3, "7 hari": 7, "30 hari": 30, "90 hari": 90, "1 tahun": 365}
+HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus",
+         "September", "Oktober", "November", "Desember"]
+BULAN_JS = "['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']"
+
+
+def tgl(ts, jam=True):
+    """Tanggal berbahasa Indonesia, mis. 'Kamis, 8 Oktober 2026 20.00'."""
+    s = f"{HARI[ts.weekday()]}, {ts.day} {BULAN[ts.month - 1]} {ts.year}"
+    return f"{s} {ts:%H.%M}" if jam else s
+
+
+def x_axis(days):
+    """Sumbu waktu berlabel bahasa Indonesia (tanpa AM/PM)."""
+    label = f"date(datum.value) + ' ' + {BULAN_JS}[month(datum.value)]"
+    if days <= 3:
+        label += " + ' ' + timeFormat(datum.value, '%H.%M')"
+    return alt.X("waktu:T", title=None, axis=alt.Axis(labelExpr=label, labelAngle=0, tickCount=8))
+
+
+def short(nama):
+    return nama.replace("Kabupaten ", "Kab. ")
 
 
 @st.cache_data(ttl=600)
-def load():
-    loc = pd.read_csv(LOCATIONS, dtype={"adm2": str})
+def load_live():
+    loc = pd.read_csv(CONFIG / "locations.csv", dtype={"adm2": str})
     pred = pd.read_csv(f"{LIVE}/latest_predictions.csv", dtype={"adm2": str},
                        parse_dates=["issued_at", "valid_time"])
     obs = pd.read_csv(f"{LIVE}/latest_observations.csv", dtype={"adm2": str}, parse_dates=["time"])
     try:
-        bmkg = pd.read_csv(f"{BMKG}/bmkg/latest.csv.gz", dtype={"adm2": str},
-                           parse_dates=["utc_datetime"])
+        bmkg = pd.read_csv(f"{BMKG}/bmkg/latest.csv.gz", dtype={"adm2": str}, parse_dates=["utc_datetime"])
+        bmkg["waktu"] = bmkg["utc_datetime"] + WIB
     except Exception:  # dasbor tetap jalan walau data BMKG belum tersedia
         bmkg = pd.DataFrame()
-    for df, col in ((pred, "valid_time"), (obs, "time")):
-        df["waktu_wib"] = df[col] + WIB
-    if not bmkg.empty:
-        bmkg["waktu_wib"] = bmkg["utc_datetime"] + WIB
+    pred["waktu"] = pred["valid_time"] + WIB
+    obs["waktu"] = obs["time"] + WIB
     return loc, pred, obs, bmkg
 
 
-def color_for(values, lo, hi):
-    """Warna biru -> merah sesuai nilai (untuk peta)."""
-    frac = ((values - lo) / max(hi - lo, 1e-6)).clip(0, 1)
-    return [f"#{int(40 + 200 * f):02x}{int(90 + 40 * (1 - abs(2 * f - 1))):02x}{int(220 - 180 * f):02x}"
-            for f in frac]
+@st.cache_data
+def load_geo():
+    return json.loads((CONFIG / "jateng.geojson").read_text())["features"]
+
+
+@st.cache_data(ttl=3 * 3600, show_spinner="Mengambil riwayat dari Open-Meteo…")
+def load_history(lat, lon):
+    """Riwayat per jam 1 tahun terakhir (ECMWF IFS, sumber yang sama dengan data latih)."""
+    end = date.today()
+    r = requests.get("https://archive-api.open-meteo.com/v1/archive", timeout=60, params=dict(
+        latitude=lat, longitude=lon, start_date=(end - timedelta(days=366)).isoformat(),
+        end_date=end.isoformat(), hourly=",".join(VARS), models="ecmwf_ifs", timezone="GMT"))
+    r.raise_for_status()
+    h = pd.DataFrame(r.json()["hourly"])
+    h["waktu"] = pd.to_datetime(h.pop("time")) + WIB
+    return h.dropna()
+
+
+def choropleth(features, values, var, title):
+    label, unit, _, scheme = VARS[var]
+    lookup = alt.LookupData(values, key="adm2", fields=["nilai", "teks"])
+    return alt.Chart(alt.Data(values=features)).mark_geoshape(stroke="white", strokeWidth=0.8).encode(
+        color=alt.Color("nilai:Q", title=f"{label} ({unit})",
+                        scale=alt.Scale(scheme=scheme, reverse=var == "temperature_2m"),
+                        legend=alt.Legend(orient="bottom", gradientLength=300)),
+        tooltip=[alt.Tooltip("properties.nama:N", title="Wilayah"), alt.Tooltip("teks:N", title=label)],
+    ).transform_lookup(lookup="properties.adm2", from_=lookup).project("mercator").properties(
+        height=430, title=title)
 
 
 def main():
     st.set_page_config(page_title="Cuaca Jawa Tengah", page_icon="🌦️", layout="wide")
     st.title("🌦️ Prediksi Cuaca Realtime — Jawa Tengah")
     try:
-        loc, pred, obs, bmkg = load()
+        loc, pred, obs, bmkg = load_live()
     except Exception as e:
         st.error(f"Data realtime belum tersedia: {e}")
         return
-
     names = loc.set_index("adm2")["nama"]
     issued = pred["issued_at"].max() + WIB
     model = pred["model"].iloc[0]
-    st.caption(f"Diterbitkan {issued:%d %b %Y %H:%M} WIB · model: **{model}** · "
-               f"35 kabupaten/kota · horizon 1–24 jam")
+    st.caption(f"Diterbitkan {tgl(issued)} WIB · model: **{model}** · 35 kabupaten/kota")
 
-    var = st.sidebar.radio("Variabel", list(VARS), format_func=lambda v: f"{VARS[v][0]} ({VARS[v][1]})")
-    label, unit, bmkg_col = VARS[var]
-    adm2 = st.sidebar.selectbox("Kabupaten/kota", loc["adm2"], format_func=lambda a: names[a])
-    horizon = st.sidebar.select_slider("Horizon peta (jam ke depan)", [1, 3, 6, 12, 24], value=3)
+    # --- Filter --------------------------------------------------------------------
+    sb = st.sidebar
+    sb.header("Peta")
+    map_var = sb.selectbox("Variabel peta", list(VARS), format_func=lambda v: VARS[v][0])
+    map_h = sb.select_slider("Waktu peta", [0, 1, 3, 6, 12, 24], value=0,
+                             format_func=lambda h: "Sekarang" if h == 0 else f"+{h} jam")
+    sb.header("Grafik")
+    chosen = sb.multiselect("Kabupaten/kota", loc["adm2"], default=["33.74"],
+                            format_func=lambda a: names[a], max_selections=6)
+    chart_vars = sb.multiselect("Variabel", list(VARS), default=["temperature_2m", "relative_humidity_2m"],
+                                format_func=lambda v: VARS[v][0])
+    rng = sb.selectbox("Rentang waktu", list(RANGES), index=2)
+    show_pred = sb.checkbox("Tampilkan prediksi 24 jam", value=True)
+    show_bmkg = sb.checkbox("Tampilkan prakiraan BMKG", value=False)
 
-    # --- Peta dan tabel ringkas -------------------------------------------------
-    now_obs = obs[obs["time"] == obs["time"].max()].set_index("adm2")[var]
-    at_h = pred[pred["horizon"] == horizon].set_index("adm2")[var]
-    table = loc[["adm2", "nama", "lat", "lon"]].assign(
-        sekarang=loc["adm2"].map(now_obs), prediksi=loc["adm2"].map(at_h))
-    lo, hi = table["prediksi"].min(), table["prediksi"].max()
-    table["warna"] = color_for(table["prediksi"], lo, hi)
+    # --- Peta -------------------------------------------------------------------------
+    label, unit = VARS[map_var][:2]
+    if map_h == 0:
+        cur = obs[obs["time"] == obs["time"].max()].set_index("adm2")[map_var]
+        when = f"{tgl(obs['waktu'].max())} WIB"
+    else:
+        cur = pred[pred["horizon"] == map_h].set_index("adm2")[map_var]
+        when = f"prediksi {tgl(issued + pd.Timedelta(hours=map_h))} WIB"
+    table = loc[["adm2", "nama"]].assign(nilai=loc["adm2"].map(cur).round(1))
+    table["teks"] = table["nilai"].map(lambda v: f"{v:.1f} {unit}")
 
     left, right = st.columns([3, 2])
     with left:
-        st.subheader(f"{label} — prediksi +{horizon} jam")
-        st.map(table, latitude="lat", longitude="lon", color="warna", size=4000)
-        st.caption(f"Biru = {lo:.1f} {unit}, merah = {hi:.1f} {unit}")
+        st.altair_chart(choropleth(load_geo(), table, map_var, f"{label} — {when}"), width="stretch")
     with right:
-        st.subheader("Semua lokasi")
-        st.dataframe(table[["nama", "sekarang", "prediksi"]].rename(columns={
-            "nama": "Kabupaten/kota", "sekarang": f"Sekarang ({unit})", "prediksi": f"+{horizon} jam ({unit})"}),
-            hide_index=True, height=420)
+        st.dataframe(table.sort_values("nilai", ascending=False)[["nama", "nilai"]].rename(
+            columns={"nama": "Kabupaten/kota", "nilai": f"{label} ({unit})"}),
+            hide_index=True, height=470, width="stretch")
 
-    # --- Deret waktu lokasi terpilih ---------------------------------------------
-    st.subheader(f"{names[adm2]} — {label}")
-    o = obs[obs["adm2"] == adm2][["waktu_wib", var]].assign(sumber="Data (Open-Meteo)")
-    p = pred[pred["adm2"] == adm2][["waktu_wib", var]].assign(sumber=f"Prediksi ({model})")
-    parts = [o, p]
-    if not bmkg.empty:
-        b = bmkg[bmkg["adm2"] == adm2][["waktu_wib", bmkg_col]].rename(columns={bmkg_col: var})
-        parts.append(b.assign(sumber="Prakiraan BMKG"))
-    series = pd.concat(parts, ignore_index=True)
-    chart = alt.Chart(series).mark_line(point=True).encode(
-        x=alt.X("waktu_wib:T", title="Waktu (WIB)"),
-        y=alt.Y(f"{var}:Q", title=f"{label} ({unit})"),
-        color=alt.Color("sumber:N", title=None, legend=alt.Legend(orient="top")),
-        strokeDash=alt.StrokeDash("sumber:N", legend=None),
-        tooltip=["sumber", alt.Tooltip("waktu_wib:T", format="%d %b %H:%M"), alt.Tooltip(f"{var}:Q", format=".1f")],
-    ).properties(height=320)
-    rule = alt.Chart(pd.DataFrame({"t": [issued]})).mark_rule(color="gray").encode(x="t:T")
-    st.altair_chart(chart + rule, width="stretch")
+    # --- Grafik garis -------------------------------------------------------------------
+    if not chosen or not chart_vars:
+        st.info("Pilih minimal satu kabupaten/kota dan satu variabel di panel kiri.")
+    else:
+        days = RANGES[rng]
+        start = obs["waktu"].max() - pd.Timedelta(days=days)
+        parts = []
+        for a in chosen:
+            row = loc.set_index("adm2").loc[a]
+            try:
+                hist = load_history(row["lat"], row["lon"])
+            except Exception as e:
+                st.warning(f"Riwayat {names[a]} gagal diambil ({e}); hanya 48 jam terakhir yang ditampilkan.")
+                hist = pd.DataFrame(columns=["waktu", *VARS])
+            recent = obs[obs["adm2"] == a][["waktu", *VARS]]
+            data = pd.concat([hist, recent]).drop_duplicates("waktu", keep="last")
+            parts.append(data[data["waktu"] >= start].assign(wilayah=short(names[a]), jenis="Data"))
+            if show_pred:
+                parts.append(pred[pred["adm2"] == a][["waktu", *VARS]].assign(
+                    wilayah=short(names[a]), jenis="Prediksi"))
+            if show_bmkg and not bmkg.empty:
+                b = bmkg[bmkg["adm2"] == a].rename(columns={v[2]: k for k, v in VARS.items()})
+                parts.append(b[["waktu", *VARS]].assign(wilayah=short(names[a]), jenis="BMKG"))
+        series = pd.concat(parts, ignore_index=True)
+        daily = days >= 30
+        if daily:  # ponytail: rata-rata harian agar grafik setahun tetap terbaca; ubah ambang bila perlu
+            series = (series.assign(waktu=series["waktu"].dt.floor("D"))
+                      .groupby(["wilayah", "jenis", "waktu"], as_index=False)[list(VARS)].mean())
+        series["waktu_teks"] = series["waktu"].map(lambda t: tgl(t, jam=not daily))
 
-    # --- Peringatan ---------------------------------------------------------------
+        st.subheader(f"Grafik {rng} terakhir" + (" (rata-rata harian)" if daily else ""))
+        for v in chart_vars:
+            vl, vu = VARS[v][:2]
+            line = alt.Chart(series).mark_line(strokeWidth=1.8, interpolate="monotone").encode(
+                x=x_axis(days),
+                y=alt.Y(f"{v}:Q", title=f"{vl} ({vu})", scale=alt.Scale(zero=v == "precipitation")),
+                color=alt.Color("wilayah:N", title=None, legend=alt.Legend(orient="top")),
+                strokeDash=alt.StrokeDash("jenis:N", title=None,
+                                          scale=alt.Scale(domain=["Data", "Prediksi", "BMKG"],
+                                                          range=[[1, 0], [6, 3], [2, 2]])),
+                tooltip=[alt.Tooltip("wilayah:N", title="Wilayah"), alt.Tooltip("jenis:N", title="Jenis"),
+                         alt.Tooltip("waktu_teks:N", title="Waktu (WIB)"),
+                         alt.Tooltip(f"{v}:Q", title=f"{vl} ({vu})", format=".1f")],
+            )
+            now = alt.Chart(pd.DataFrame({"waktu": [issued]})).mark_rule(color="gray", strokeDash=[3, 3]) \
+                .encode(x="waktu:T")
+            st.altair_chart((line + now).properties(height=280, title=vl).interactive(bind_y=False),
+                            width="stretch")
+        st.caption("Garis utuh = data, putus-putus = prediksi model, titik-titik = prakiraan BMKG. "
+                   "Garis vertikal = waktu terbit prediksi. Gulir/seret grafik untuk memperbesar.")
+
+    # --- Peringatan ------------------------------------------------------------------------
     st.subheader("⚠️ Peringatan 24 jam ke depan")
     warnings = []
     for v, (op, thr) in THRESHOLDS.items():
@@ -119,15 +208,15 @@ def main():
         for a, g in hit.groupby("adm2"):
             r = g.loc[g[v].idxmax() if op == ">=" else g[v].idxmin()]
             warnings.append({"Kabupaten/kota": names[a], "Peringatan": VARS[v][0],
-                             "Nilai": f"{r[v]:.1f} {VARS[v][1]}", "Waktu (WIB)": f"{r['waktu_wib']:%d/%m %H:%M}"})
+                             "Nilai": f"{r[v]:.1f} {VARS[v][1]}", "Waktu (WIB)": tgl(r["waktu"])})
     if warnings:
         st.dataframe(pd.DataFrame(warnings), hide_index=True)
     else:
         st.success("Tidak ada prediksi yang melewati ambang peringatan.")
 
     st.divider()
-    st.caption("Data: Open-Meteo (ECMWF IFS, CC-BY 4.0) · Prakiraan pembanding: BMKG · "
-               "Penelitian skripsi — github.com/SirojMun/akuKehujanan")
+    st.caption("Data: Open-Meteo (ECMWF IFS, CC-BY 4.0) · Batas wilayah: geoBoundaries/BPS (CC BY 3.0 IGO) · "
+               "Prakiraan pembanding: BMKG · Penelitian skripsi — github.com/SirojMun/akuKehujanan")
 
 
 main()
