@@ -13,9 +13,9 @@ import torch
 
 from whocry import settings
 from whocry.data.openmeteo import FORECAST_URL, _get, make_session
-from whocry.features.build import (TARGET_NAMES, Scaler, WindowData, inverse_targets, time_features,
-                                   to_array)
-from whocry.features.spatial import idw_weights, static_features
+from whocry.features.build import (TARGET_NAMES, WIND_IDX, Scaler, WindowData, inverse_targets,
+                                   time_features, to_array)
+from whocry.features.spatial import idw_weights, static_features, upwind_geometry
 from whocry.models.nets import build_model
 
 FETCH_VARS = [v for v in settings.HOURLY_VARS if v != "weather_code"]
@@ -94,7 +94,8 @@ def forecast(hourly, locations, artifact=None):
         data = WindowData(
             X=artifact["x_scaler"].transform(X), T_feat=time_features(times),
             static=artifact["s_scaler"].transform(static_features(locations)),
-            W=idw_weights(locations["lat"], locations["lon"]), variant=artifact["variant"])
+            W=idw_weights(locations["lat"], locations["lon"]), variant=artifact["variant"],
+            wind=X[..., WIND_IDX].copy(), geo=upwind_geometry(locations["lat"], locations["lon"]))
         idx = np.column_stack([np.full(len(locations), len(times) - 1), np.arange(len(locations))])
         x = data.batch_inputs(idx)
         with torch.no_grad():

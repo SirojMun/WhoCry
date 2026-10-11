@@ -15,7 +15,8 @@ import numpy as np
 import pandas as pd
 
 from whocry import settings
-from whocry.features.spatial import STATIC_NAMES, idw_weights, static_features
+from whocry.features.spatial import (STATIC_NAMES, idw_weights, static_features, upwind_geometry,
+                                     upwind_weights)
 
 TARGET_NAMES = ["temperature_2m", "relative_humidity_2m", "cloud_cover", "precipitation"]
 TARGET_RANGES = {"relative_humidity_2m": (0, 100), "cloud_cover": (0, 100), "precipitation": (0, None)}
@@ -26,7 +27,8 @@ DYNAMIC_NAMES = TARGET_NAMES + [
 ]
 TIME_NAMES = ["jam_sin", "jam_cos", "hari_sin", "hari_cos"]
 LOG_VARS = {"precipitation"}
-VARIANTS = ("S0", "S1", "S2", "S3")
+VARIANTS = ("S0", "S1", "S2", "S3", "S4")
+WIND_IDX = [DYNAMIC_NAMES.index("wind_u"), DYNAMIC_NAMES.index("wind_v")]
 WIB_OFFSET_H = 7
 
 
@@ -110,6 +112,8 @@ class WindowData:
     static: np.ndarray       # [L, S] ternormalisasi
     W: np.ndarray            # [L, L] bobot IDW
     variant: str
+    wind: np.ndarray | None = None   # [T, L, 2] angin u/v mentah (km/jam), wajib untuk S4
+    geo: tuple | None = None         # upwind_geometry(lat, lon), wajib untuk S4
     n_in: int = settings.INPUT_HOURS
     n_out: int = settings.HORIZON_HOURS
     n_targets: int = len(TARGET_NAMES)
@@ -119,6 +123,8 @@ class WindowData:
     def __post_init__(self):
         if self.variant not in VARIANTS:
             raise ValueError(f"varian tidak dikenal: {self.variant}")
+        if self.variant == "S4" and (self.wind is None or self.geo is None):
+            raise ValueError("S4 membutuhkan wind dan geo")
         self._offsets_in = np.arange(-self.n_in + 1, 1)
         self._offsets_out = np.arange(1, self.n_out + 1)
 
@@ -129,9 +135,9 @@ class WindowData:
     @property
     def n_features(self):
         f = self.X.shape[2] + self.T_feat.shape[1]
-        if self.variant in ("S1", "S2", "S3"):
+        if self.variant in ("S1", "S2", "S3", "S4"):
             f += self.static.shape[1]
-        if self.variant == "S2":
+        if self.variant in ("S2", "S4"):
             f += self.X.shape[2]
         if self.variant == "S3":
             f += self.X.shape[1] * self.X.shape[2] + self.X.shape[1]
@@ -149,11 +155,17 @@ class WindowData:
         t, l = idx[:, 0], idx[:, 1]
         tin = t[:, None] + self._offsets_in             # [B, n_in]
         parts = [self.X[tin, l[:, None]], self.T_feat[tin]]
-        if self.variant in ("S1", "S2", "S3"):
+        if self.variant in ("S1", "S2", "S3", "S4"):
             parts.append(np.repeat(self.static[l][:, None, :], self.n_in, axis=1))
         if self.variant == "S2":
             # Rata-rata berbobot tetangga: sum_m W[l, m] * X[t, m, :]
             parts.append(np.einsum("bm,btmf->btf", self.W[l], self.X[tin]))
+        if self.variant == "S4":
+            # Rata-rata tetangga dari arah datangnya angin, dihitung ulang di tiap jam jendela.
+            ex, ey, inv_d = self.geo
+            wnd = self.wind[tin, l[:, None]]                                 # [B, n_in, 2]
+            w = upwind_weights(wnd[..., 0], wnd[..., 1], ex[l], ey[l], inv_d[l], self.W[l])
+            parts.append(np.einsum("btm,btmf->btf", w, self.X[tin]))
         if self.variant == "S3":
             B = len(idx)
             parts.append(self.X[tin].reshape(B, self.n_in, -1))
@@ -178,6 +190,8 @@ def prepare(hourly, locations, variant, stride=1,
         static=s_scaler.transform(static),
         W=idw_weights(locations["lat"], locations["lon"]),
         variant=variant,
+        wind=X[..., WIND_IDX].copy(),
+        geo=upwind_geometry(locations["lat"], locations["lon"]),
     )
     index = {name: sample_index(X, b, stride=stride) for name, b in bounds.items()}
     meta = dict(times=times, bounds=bounds, x_scaler=x_scaler, s_scaler=s_scaler,

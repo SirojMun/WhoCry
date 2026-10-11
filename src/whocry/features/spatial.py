@@ -63,3 +63,33 @@ def idw_weights(lat, lon, k=4, power=2):
     rows = np.arange(len(lat))[:, None]
     w[rows, nearest] = 1.0 / np.maximum(d[rows, nearest], 1.0) ** power
     return (w / w.sum(axis=1, keepdims=True)).astype("float32")
+
+
+UPWIND_RADIUS_KM = 150
+
+
+def upwind_geometry(lat, lon, radius_km=UPWIND_RADIUS_KM):
+    """Geometri untuk bobot upwind: ex/ey[i, j] = vektor satuan dari tetangga j MENUJU lokasi i
+    (timur, utara), inv_d[i, j] = 1/jarak untuk tetangga dalam radius (0 untuk diri sendiri/di luar radius)."""
+    lat, lon = np.asarray(lat, dtype="float64"), np.asarray(lon, dtype="float64")
+    dx = (lon[:, None] - lon[None, :]) * 111.32 * np.cos(np.radians(lat))[:, None]
+    dy = (lat[:, None] - lat[None, :]) * 110.57
+    d = haversine_km(lat[:, None], lon[:, None], lat[None, :], lon[None, :])
+    norm = np.where(d > 0, np.hypot(dx, dy), 1.0)
+    inv_d = np.where((d > 0) & (d < radius_km), 1.0 / np.maximum(d, 1.0), 0.0)
+    return (dx / norm).astype("float32"), (dy / norm).astype("float32"), inv_d.astype("float32")
+
+
+def upwind_weights(u, v, ex, ey, inv_d, fallback):
+    """Bobot tetangga berdasarkan arah angin di lokasi target.
+
+    u, v: [B, T] angin (vektor tiupan) di lokasi target; ex, ey, inv_d, fallback: [B, L] baris geometri
+    untuk lokasi target. Tetangga j berbobot cos(sudut antara angin dan arah j->i)^2 / jarak, hanya jika
+    angin bertiup dari j ke i. Bila tidak ada tetangga yang searah angin, dipakai bobot IDW (fallback).
+    Keluaran [B, T, L], tiap baris berjumlah 1.
+    """
+    spd = np.hypot(u, v)[..., None] + 1e-6
+    cos = (u[..., None] * ex[:, None, :] + v[..., None] * ey[:, None, :]) / spd
+    w = np.clip(cos, 0, None) ** 2 * inv_d[:, None, :]
+    s = w.sum(-1, keepdims=True)
+    return np.where(s > 0, w / np.where(s > 0, s, 1.0), fallback[:, None, :]).astype("float32")

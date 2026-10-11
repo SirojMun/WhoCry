@@ -65,7 +65,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="gru",
                     choices=["persistence", "seasonal_naive", "linear", "lstm", "gru"])
-    ap.add_argument("--variant", default="S1", choices=["S0", "S1", "S2", "S3"])
+    ap.add_argument("--variant", default="S1", choices=["S0", "S1", "S2", "S3", "S4"])
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--hidden", type=int, default=64)
     ap.add_argument("--layers", type=int, default=1)

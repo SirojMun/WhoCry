@@ -135,3 +135,26 @@ def test_inverse_targets_roundtrip(setup):
     out = build.inverse_targets(y, meta["x_scaler"])
     assert (out[..., 3] >= 0).all()          # curah hujan tidak negatif
     assert (out[..., 1] <= 100).all()        # kelembapan maks 100%
+
+
+def test_upwind_weights_follow_wind_direction():
+    from whocry.features.spatial import upwind_geometry, upwind_weights
+    # Tiga lokasi berjajar barat -> timur, berjarak ±55 km.
+    lat, lon = np.array([-7.0, -7.0, -7.0]), np.array([110.0, 110.5, 111.0])
+    ex, ey, inv_d = upwind_geometry(lat, lon)
+    fallback = np.full((3, 3), 1 / 3, dtype="float32")
+    l = np.array([1])                                   # lokasi tengah
+    east = upwind_weights(np.array([[20.0]]), np.array([[0.0]]), ex[l], ey[l], inv_d[l], fallback[l])
+    west = upwind_weights(np.array([[-20.0]]), np.array([[0.0]]), ex[l], ey[l], inv_d[l], fallback[l])
+    calm = upwind_weights(np.array([[0.0]]), np.array([[20.0]]), ex[l], ey[l], inv_d[l], fallback[l])
+    np.testing.assert_allclose(east[0, 0], [1, 0, 0], atol=1e-6)    # angin ke timur -> dari barat
+    np.testing.assert_allclose(west[0, 0], [0, 0, 1], atol=1e-6)    # angin ke barat -> dari timur
+    np.testing.assert_allclose(calm[0, 0], fallback[1])             # angin ke utara: tak ada yang searah -> IDW
+
+
+def test_s4_uses_upwind_neighbor(setup):
+    loc, hourly, kw = setup
+    data, index, _ = prepare(hourly, loc, "S4", **kw)
+    x, _ = data.batch(index["train"][:8])
+    assert x.shape[2] == data.n_features
+    assert np.isfinite(x).all()

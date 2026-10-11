@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 import pandas as pd
 import torch
 
@@ -45,23 +46,24 @@ def test_process_without_credentials_does_not_mark_sent(tmp_path, monkeypatch):
     assert json.loads(state.read_text()) == {}   # tidak terkirim -> dicoba lagi nanti
 
 
-def test_forecast_with_trained_artifact(tmp_path):
+@pytest.mark.parametrize("variant", ["S2", "S4"])
+def test_forecast_with_trained_artifact(tmp_path, variant):
     loc = make_locations(4)
     hourly = make_hourly(loc)
-    data, index, meta = prepare(hourly, loc, "S2", **KW)
+    data, index, meta = prepare(hourly, loc, variant, **KW)
     cfg = TrainConfig(model="gru", hidden=8, max_epochs=1, batch_size=64)
     model, _ = fit(cfg, data, index, log=lambda *_: None)
     torch.save(model.state_dict(), tmp_path / "model.pt")
     np.savez(tmp_path / "scaler.npz", x_mean=meta["x_scaler"].mean, x_std=meta["x_scaler"].std,
              s_mean=meta["s_scaler"].mean, s_std=meta["s_scaler"].std)
     (tmp_path / "config.json").write_text(json.dumps(dict(
-        model="gru", variant="S2", n_features=data.n_features, hidden=8, layers=1, dropout=0.1)))
+        model="gru", variant=variant, n_features=data.n_features, hidden=8, layers=1, dropout=0.1)))
 
     artifact = load_artifact(tmp_path, loc)
     recent = hourly[hourly["time"] >= hourly["time"].max() - pd.Timedelta(hours=47)]
     pred = forecast(recent, loc, artifact)
     assert len(pred) == 4 * 24
-    assert (pred["model"] == "gru_S2").all()
+    assert (pred["model"] == f"gru_{variant}").all()
     assert pred["valid_time"].min() == recent["time"].max() + pd.Timedelta(hours=1)
     assert pred[["temperature_2m", "precipitation"]].notna().all().all()
 
