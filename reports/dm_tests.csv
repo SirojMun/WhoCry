@@ -88,10 +88,10 @@ gru_S4,naif_terbaik,relative_humidity_2m,3,3.606685,5.343312,-49.80595,0.0,A leb
 gru_S4,naif_terbaik,relative_humidity_2m,6,4.2772985,5.343166,-26.65373,1.6200282168209008e-156,A lebih baik
 gru_S4,naif_terbaik,relative_humidity_2m,24,4.791122,5.3408375,-14.822796,1.0434934286792727e-49,A lebih baik
 gru_S4,naif_terbaik,cloud_cover,1,10.405058,9.607328,39.893932,0.0,B lebih baik
-gru_S4,naif_terbaik,cloud_cover,3,15.701585,22.550303,-28.272482,7.533682048834653e-176,A lebih baik
-gru_S4,naif_terbaik,cloud_cover,6,18.691507,22.556526,-13.635458,2.4643989621023968e-42,A lebih baik
+gru_S4,naif_terbaik,cloud_cover,3,15.701585,15.818579,-1.2767352,0.20169575727687683,tidak berbeda nyata
+gru_S4,naif_terbaik,cloud_cover,6,18.691507,19.771683,-5.6313705,1.7878311065861695e-08,A lebih baik
 gru_S4,naif_terbaik,cloud_cover,24,21.945705,22.568594,-1.7895385,0.0735281332707234,tidak berbeda nyata
 gru_S4,naif_terbaik,precipitation,1,0.2521153,0.31921887,-36.78001,3.8540325308748823e-296,A lebih baik
-gru_S4,naif_terbaik,precipitation,3,0.2872995,0.4265125,-26.853,7.78049236989024e-159,A lebih baik
+gru_S4,naif_terbaik,precipitation,3,0.2872995,0.41499043,-25.508179,1.5995905470319665e-143,A lebih baik
 gru_S4,naif_terbaik,precipitation,6,0.29982206,0.42646712,-20.468842,4.08208886326815e-93,A lebih baik
 gru_S4,naif_terbaik,precipitation,24,0.30695552,0.42583296,-15.010739,6.244740516252705e-51,A lebih baik

@@ -13,7 +13,7 @@ Hasil di /kaggle/working/outputs/<tahap>/; unduh dengan
 STAGES = ["retrain"]   # search & main 40 lokasi selesai 2026-10-13 (kernel v3)
 VARIANTS = ["S0", "S1", "S2", "S3", "S4"]
 RETRAIN_MODEL = ("gru", "S4")              # None = pilih otomatis dari loss validasi tahap main
-RETRAIN_STRATEGIES = ["R0", "R2R", "R4"]   # R1–R3 sudah dijalankan di kernel v3
+RETRAIN_STRATEGIES = ["R4"]   # ulang R4 setelah perbaikan tumpang tindih target latih–gerbang (R0 deterministik)
 TIME_BUDGET_H = 10.5  # berhenti memulai run baru setelah ini agar output sempat tersimpan
 
 import glob
