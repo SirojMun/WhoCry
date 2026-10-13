@@ -101,9 +101,11 @@ def simulate(base_model, model_factory, data, meta, rcfg, log=print):
         recent = known[known[:, 0] >= we - rcfg.finetune_weeks * HOURS_PER_WEEK]
         updated, t0 = False, time.time()
         if rcfg.strategy in ("R2R", "R4"):
-            # R4 menyisihkan minggu terakhir yang sudah teramati sebagai data uji gerbang.
-            gate = known[known[:, 0] >= we - data.n_out - HOURS_PER_WEEK] if rcfg.strategy == "R4" else known[:0]
-            train_known = known[known[:, 0] < we - data.n_out - HOURS_PER_WEEK] if rcfg.strategy == "R4" else known
+            # R4 menyisihkan minggu terakhir yang sudah teramati sebagai data uji gerbang. Sampel latih
+            # berhenti n_out jam sebelum gerbang agar target latih tidak tumpang tindih dengan target gerbang.
+            gate_start = we - data.n_out - HOURS_PER_WEEK
+            gate = known[known[:, 0] >= gate_start] if rcfg.strategy == "R4" else known[:0]
+            train_known = known[known[:, 0] < gate_start - data.n_out] if rcfg.strategy == "R4" else known
             recent_tr = train_known[train_known[:, 0] >= we - rcfg.finetune_weeks * HOURS_PER_WEEK]
             older = train_known[train_known[:, 0] < we - rcfg.finetune_weeks * HOURS_PER_WEEK]
             n_rep = min(len(older), int(len(recent_tr) * rcfg.replay_ratio))
