@@ -1,4 +1,8 @@
-"""Simulasi walk-forward strategi pelatihan ulang R0–R3 pada periode uji.
+"""Simulasi walk-forward strategi pelatihan ulang pada periode uji.
+
+R0 statis · R1 latih ulang penuh dari nol · R2 fine-tune data terbaru · R3 R2 bila galat naik ·
+R2R fine-tune data terbaru + replay sampel historis · R4 R2R dengan gerbang champion–challenger
+(model baru hanya dipakai bila lebih baik pada minggu terakhir yang tidak ikut dilatih).
 
 Setiap minggu: (1) model saat ini memprediksi sampel minggu itu, galatnya dicatat;
 (2) model diperbarui sesuai strategi, hanya memakai sampel yang targetnya sudah
@@ -17,7 +21,7 @@ from torch import nn
 from whocry.features.build import TARGET_NAMES, inverse_targets, sample_index
 from whocry.train import device, iterate, predict
 
-STRATEGIES = ("R0", "R1", "R2", "R3")
+STRATEGIES = ("R0", "R1", "R2", "R3", "R2R", "R4")
 HOURS_PER_WEEK = 24 * 7
 
 
@@ -30,6 +34,10 @@ class RetrainConfig:
     full_epochs: int = 10         # R1: jumlah epoch latih ulang penuh
     full_max_samples: int = 500_000
     trigger_ratio: float = 1.1    # R3: ambang galat relatif terhadap galat validasi
+    replay_ratio: float = 1.0     # R2R/R4: sampel historis acak per sampel terbaru
+    replay_lr: float = 1e-4       # R2R/R4: lr kecil agar tidak "lupa" pola lama
+    replay_epochs: int = 1
+    gate_margin: float = 0.01     # R4: challenger harus >= 1% lebih baik dari champion
     batch_size: int = 1024
     seed: int = 0
 
@@ -92,7 +100,20 @@ def simulate(base_model, model_factory, data, meta, rcfg, log=print):
         known = all_idx[all_idx[:, 0] + data.n_out < we]
         recent = known[known[:, 0] >= we - rcfg.finetune_weeks * HOURS_PER_WEEK]
         updated, t0 = False, time.time()
-        if rcfg.strategy == "R1":
+        if rcfg.strategy in ("R2R", "R4"):
+            # R4 menyisihkan minggu terakhir yang sudah teramati sebagai data uji gerbang.
+            gate = known[known[:, 0] >= we - data.n_out - HOURS_PER_WEEK] if rcfg.strategy == "R4" else known[:0]
+            train_known = known[known[:, 0] < we - data.n_out - HOURS_PER_WEEK] if rcfg.strategy == "R4" else known
+            recent_tr = train_known[train_known[:, 0] >= we - rcfg.finetune_weeks * HOURS_PER_WEEK]
+            older = train_known[train_known[:, 0] < we - rcfg.finetune_weeks * HOURS_PER_WEEK]
+            n_rep = min(len(older), int(len(recent_tr) * rcfg.replay_ratio))
+            mix = np.concatenate([recent_tr, older[rng.choice(len(older), n_rep, replace=False)]])
+            challenger = _train_epochs(copy.deepcopy(model), data, mix, rcfg.replay_epochs, rcfg.replay_lr,
+                                       rcfg.batch_size, rng)
+            if rcfg.strategy == "R2R" or (
+                    _norm_mae(challenger, data, gate) < (1 - rcfg.gate_margin) * _norm_mae(model, data, gate)):
+                model, updated = challenger, True
+        elif rcfg.strategy == "R1":
             sub = known if len(known) <= rcfg.full_max_samples else \
                 known[rng.choice(len(known), rcfg.full_max_samples, replace=False)]
             model = _train_epochs(model_factory(), data, sub, rcfg.full_epochs, 1e-3, rcfg.batch_size, rng)

@@ -48,7 +48,7 @@ def test_skill_score_and_dm():
     assert stat < 0 and p < 0.01
 
 
-@pytest.mark.parametrize("strategy", ["R0", "R1", "R2", "R3"])
+@pytest.mark.parametrize("strategy", ["R0", "R1", "R2", "R3", "R2R", "R4"])
 def test_retrain_simulation(prepared, strategy):
     from whocry.retrain import RetrainConfig, simulate
     from whocry.train import make_model
@@ -61,4 +61,28 @@ def test_retrain_simulation(prepared, strategy):
     weeks = simulate(model, lambda: make_model(cfg, data), data, meta, rcfg, log=lambda *_: None)
     assert len(weeks) >= 1
     assert {"mae_temperature_2m", "updated", "update_seconds"} <= set(weeks.columns)
-    assert weeks["updated"].all() == (strategy != "R0")
+    if strategy == "R4":   # gerbang: boleh menolak challenger, tapi kolomnya harus boolean
+        assert weeks["updated"].dtype == bool
+    else:
+        assert weeks["updated"].all() == (strategy != "R0")
+
+
+def test_gate_rejects_worse_challenger(prepared, monkeypatch):
+    """R4 tidak boleh memakai challenger yang lebih buruk; R2R (tanpa gerbang) selalu memakainya."""
+    import torch
+    from whocry import retrain
+    from whocry.retrain import RetrainConfig, simulate
+
+    data, index, meta = prepared
+    champion, _ = fit(TrainConfig(model="gru", hidden=8, max_epochs=1, batch_size=64), data, index,
+                      log=lambda *_: None)
+
+    class Broken(torch.nn.Module):          # challenger buruk: prediksi konstan 10 sd dari rerata
+        def forward(self, x):
+            return torch.full((len(x), data.n_out, data.n_targets), 10.0)
+
+    monkeypatch.setattr(retrain, "_train_epochs", lambda *a, **k: Broken())
+    gated = simulate(champion, None, data, meta, RetrainConfig(strategy="R4", batch_size=64), log=lambda *_: None)
+    ungated = simulate(champion, None, data, meta, RetrainConfig(strategy="R2R", batch_size=64), log=lambda *_: None)
+    assert not gated["updated"].any()
+    assert ungated["updated"].all()

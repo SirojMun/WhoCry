@@ -10,8 +10,10 @@ Hasil di /kaggle/working/outputs/<tahap>/; unduh dengan
 `kaggle kernels output sirojmunir/whocry-train -p outputs/kaggle`.
 """
 
-STAGES = ["search", "main", "retrain"]   # 40 lokasi (Jateng + DIY), dengan varian S4 (upwind)
+STAGES = ["retrain"]   # search & main 40 lokasi selesai 2026-10-13 (kernel v3)
 VARIANTS = ["S0", "S1", "S2", "S3", "S4"]
+RETRAIN_MODEL = ("gru", "S4")              # None = pilih otomatis dari loss validasi tahap main
+RETRAIN_STRATEGIES = ["R0", "R2R", "R4"]   # R1–R3 sudah dijalankan di kernel v3
 TIME_BUDGET_H = 10.5  # berhenti memulai run baru setelah ini agar output sempat tersimpan
 
 import glob
@@ -115,13 +117,13 @@ for stage in STAGES:
         from whocry.retrain import RetrainConfig, simulate
         from whocry.train import fit, make_model
 
-        model_name, variant = best_model_variant()
+        model_name, variant = RETRAIN_MODEL or best_model_variant()
         print("model untuk simulasi pelatihan ulang:", model_name, variant)
         cfg = TrainConfig(model=model_name, seed=0, max_epochs=30, max_train_samples=1_000_000, **best_hparams())
         data, index, meta = prepare(hourly, locations, variant)
         base, _ = fit(cfg, data, index)
         out.mkdir(parents=True, exist_ok=True)
-        for strategy in ["R0", "R1", "R2", "R3"]:
+        for strategy in RETRAIN_STRATEGIES:
             if not time_left():
                 break
             # ponytail: R1 dibatasi 3 epoch × 200 ribu sampel per minggu agar muat dalam satu sesi Kaggle.
