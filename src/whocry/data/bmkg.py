@@ -17,7 +17,7 @@ FIELDS = ["t", "hu", "tcc", "tp", "ws", "wd_deg", "weather", "weather_desc", "vs
 
 def make_session():
     s = requests.Session()
-    s.headers["User-Agent"] = "WhoCry-skripsi/0.1 (github.com/SirojMun/akuKehujanan)"
+    s.headers["User-Agent"] = "WhoCry-skripsi/0.1 (github.com/SirojMun/WhoCry)"
     s.mount("https://", HTTPAdapter(max_retries=Retry(
         total=4, backoff_factor=3, status_forcelist=(429, 500, 502, 503, 504))))
     return s

@@ -24,7 +24,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 ROOT = Path(__file__).resolve().parents[1]
-UA = {"User-Agent": "WhoCry-skripsi/0.1 (github.com/SirojMun/akuKehujanan)"}
+UA = {"User-Agent": "WhoCry-skripsi/0.1 (github.com/SirojMun/WhoCry)"}
 CACHE = ROOT / "data" / "locations_cache.json"
 
 session = requests.Session()

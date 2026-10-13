@@ -25,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-subprocess.run("git clone -q --depth 1 https://github.com/SirojMun/akuKehujanan.git /tmp/repo",
+subprocess.run("git clone -q --depth 1 https://github.com/SirojMun/WhoCry.git /tmp/repo",
                shell=True, check=True)
 sys.path[:0] = ["/tmp/repo/src", "/tmp/repo/scripts"]  # di /tmp agar tidak ikut output
 

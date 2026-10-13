@@ -16,7 +16,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-REPO_RAW = "https://raw.githubusercontent.com/SirojMun/akuKehujanan"
+REPO_RAW = "https://raw.githubusercontent.com/SirojMun/WhoCry"
 LIVE = os.environ.get("WHOCRY_LIVE_DIR", f"{REPO_RAW}/data-live")
 BMKG = os.environ.get("WHOCRY_BMKG_DIR", f"{REPO_RAW}/data-bmkg")
 CONFIG = Path(__file__).resolve().parents[1] / "config"
@@ -253,7 +253,7 @@ def main():
 
     st.divider()
     st.caption("Data: Open-Meteo (ECMWF IFS, CC-BY 4.0; angin = prakiraan ECMWF IFS) · Batas wilayah: geoBoundaries/BPS (CC BY 3.0 IGO) · "
-               "Prakiraan pembanding: BMKG · Penelitian skripsi — github.com/SirojMun/akuKehujanan")
+               "Prakiraan pembanding: BMKG · Penelitian skripsi — github.com/SirojMun/WhoCry")
 
 
 main()
